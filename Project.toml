@@ -1,0 +1,7 @@
+name = "NamedRowArrays"
+uuid = "24b07f33-2be9-49a8-8558-3b162e5e4048"
+authors = ["Lucas Valenzuela"]
+version = "0.1.0"
+
+[compat]
+julia = "1.9"
