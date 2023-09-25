@@ -103,6 +103,8 @@ Base.convert(::Type{Array{T,N}}, A::NamedRowArray{T,N}) where {T,N} = convert(Ar
 Base.parent(A::NamedRowArray) = A.data
 Base.similar(A::NamedRowArray, ::Type{S}) where {S} = (d = similar(A.data, S); NamedRowArray(d, A.rownames))
 Base.similar(A::NamedRowArray, ::Type{S}, dims::Dims{N}) where {S,N} = similar(A.data, S, dims)
+Base.reinterpret(::Type{T}, A::NamedRowArray) where {T} = NamedRowArray(reinterpret(T, A.data), A.rownames)
+
 
 # A simple display method to include axis information. It might be nice to
 # eventually display the axis labels alongside the data array, but that is
