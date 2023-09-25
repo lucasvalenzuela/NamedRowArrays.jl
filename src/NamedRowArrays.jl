@@ -230,4 +230,35 @@ Returns the row names of A as an NTuple.
 """
 Base.names(A::NamedRowArray) = A.rownames
 
+
+# Operator behavior
+
+# unary operators
+Base.:-(A::NamedRowArray) = NamedRowArray(-A.data, A.rownames)
+
+# binary operators
+Base.:*(a::Number, A::NamedRowArray) = NamedRowArray(a * A.data, A.rownames)
+Base.:*(a::AbstractMatrix, A::NamedRowArray) = NamedRowArray(a * A.data, A.rownames)
+Base.:*(A::NamedRowArray, a::Number) = NamedRowArray(A.data * a, A.rownames)
+Base.:/(A::NamedRowArray, a::Number) = NamedRowArray(A.data / a, A.rownames)
+
+
+# Broadcasting behavior (from https://docs.julialang.org/en/v1/manual/interfaces/#man-interfaces-broadcasting)
+Base.BroadcastStyle(::Type{<:NamedRowArray}) = Broadcast.ArrayStyle{NamedRowArray}()
+
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{NamedRowArray}}, ::Type{ElType}) where ElType
+    # Scan the inputs for the NamedRowArray:
+    A = _find_nra(bc)
+    # create the output
+    NamedRowArray(similar(Array{ElType}, axes(bc)), A.rownames)
+end
+
+"`A = find_aac(As)` returns the first NamedRowArray among the arguments."
+_find_nra(bc::Base.Broadcast.Broadcasted) = _find_nra(bc.args)
+_find_nra(args::Tuple) = _find_nra(_find_nra(args[1]), Base.tail(args))
+_find_nra(x) = x
+_find_nra(::Tuple{}) = nothing
+_find_nra(a::NamedRowArray, rest) = a
+_find_nra(::Any, rest) = _find_nra(rest)
+
 end # module

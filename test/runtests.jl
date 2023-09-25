@@ -357,4 +357,27 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             @test_throws ArgumentError (anc["foo", "a"] = fill4(anc, 2:3, :))
         end
     end
+
+    @testset "Operators and Broadcasting" begin
+        vn = NamedRowArray(v, rownames)
+        an = NamedRowArray(a, rownames)
+
+        for arr in [vn, an]
+            # operators
+            @test +arr isa NamedRowArray
+            @test -arr isa NamedRowArray
+            @test 2arr isa NamedRowArray
+            @test arr * 2 isa NamedRowArray
+            @test arr / 2 isa NamedRowArray
+
+            # broadcasting
+            @test arr ./ 2 isa NamedRowArray
+            @test arr .* 2 isa NamedRowArray
+            @test exp10.(arr) .- 2 isa NamedRowArray
+            @test log10.(arr) .+ 2 isa NamedRowArray
+            @test log10.(arr) .+ arr isa NamedRowArray
+        end
+
+        @test rand(n, n) * an isa namedrowmatrix
+    end
 end
