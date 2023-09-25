@@ -123,8 +123,12 @@ function _summary(io, vals::NTuple)
     width = displaysize(io)[2]
 
     str = join(String.(vals), " ")
-    ind = findprev(' ', str, width - 2)
-    print(io, " ", @view(str[1:ind]), "…")
+    if width - 1 < length(str)
+        ind = findprev(' ', str, width - 2)
+        print(io, " ", @view(str[1:min(end,ind)]), "…")
+    else
+        print(io, " ", str)
+    end
 end
 
 # adapted from arrayshow.jl in Base Julia

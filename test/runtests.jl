@@ -81,6 +81,9 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
         @test_throws MethodError NamedRowVector(a, rownames)
         @test_throws MethodError NamedRowMatrix(v, rownames)
 
+        @test names(vn) == vn.rownames
+        @test names(an) == an.rownames
+
         for arr in arrs
             @test_nowarn NamedRowArray(arr, rownames)
         end
