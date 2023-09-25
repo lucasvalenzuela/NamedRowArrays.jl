@@ -137,7 +137,7 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
         @test similar(an).rownames == an.rownames
         @test similar(an, Int) isa NamedRowMatrix{Int}
         @test similar(an, Int).rownames == an.rownames
-        @test reinterpret(Int, an) isa NamedRowVector{Int}
+        @test reinterpret(Int, an) isa NamedRowMatrix{Int}
 
         @test copy(an) !== an
         @test copy(an).data !== an.data
