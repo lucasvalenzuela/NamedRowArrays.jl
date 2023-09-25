@@ -127,6 +127,7 @@ function _summary(io, vals::NTuple)
     print(io, " ", @view(str[1:ind]), "…")
 end
 
+# adapted from arrayshow.jl in Base Julia
 function Base.show(io::IO, mime::MIME"text/plain", A::NamedRowArray)
     if isempty(A) && get(io, :compact, false)::Bool
         return show(io, A)
