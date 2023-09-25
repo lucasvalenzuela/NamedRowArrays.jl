@@ -378,6 +378,6 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             @test log10.(arr) .+ arr isa NamedRowArray
         end
 
-        @test rand(n, n) * an isa namedrowmatrix
+        @test rand(n, n) * an isa NamedRowMatrix
     end
 end
