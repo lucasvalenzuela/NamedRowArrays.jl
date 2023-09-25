@@ -219,4 +219,11 @@ end
 # Cartesian iteration
 Base.eachindex(A::NamedRowArray) = eachindex(A.data)
 
+"""
+    Base.names(A::NamedRowArray)
+
+Returns the row names of A as an NTuple.
+"""
+Base.names(A::NamedRowArray) = A.rownames
+
 end # module
