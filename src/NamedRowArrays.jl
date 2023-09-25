@@ -109,12 +109,64 @@ Base.similar(A::NamedRowArray, ::Type{S}, dims::Dims{N}) where {S,N} = similar(A
 # much more difficult.
 function Base.summary(io::IO, A::NamedRowArray)
     _summary(io, A)
-    print(io, join(':' .* String.(A.rownames), ", "))
+    # print(io, join(':' .* String.(A.rownames), ", "))
+    _summary(io, A.rownames)
     println(io)
-    print(io, "for the ", summary(A.data))
+    dstmp = displaysize(io)
+    ds = (dstmp[1] - 5, dstmp[2] - 5)
+    # print(io, "for the ", summary(IOContext(io, :displaysize => ds), A.data))
+    print(IOContext(io, :displaysize => ds), "for the ", summary(A.data))
 end
 _summary(io, _::NamedRowVector{T,N}) where {T,N} = println(io, "NamedRowVector{$T,...} with row names:")
 _summary(io, _::NamedRowMatrix{T,N}) where {T,N} = println(io, "NamedRowMatrix{$T,...} with row names:")
+function _summary(io, vals::NTuple)
+    width = displaysize(io)[2]
+
+    str = join(String.(vals), " ")
+    ind = findprev(' ', str, width - 2)
+    print(io, " ", @view(str[1:ind]), "…")
+end
+
+function Base.show(io::IO, mime::MIME"text/plain", A::NamedRowArray)
+    if isempty(A) && get(io, :compact, false)::Bool
+        return show(io, A)
+    end
+    # 0) show summary before setting :compact
+    summary(io, A)
+    isempty(A) && return
+    print(io, ":")
+    Base.show_circular(io, A) && return
+
+    # 1) compute new IOContext
+    if !haskey(io, :compact) && length(axes(A, 2)) > 1
+        io = IOContext(io, :compact => true)
+    end
+    if get(io, :limit, false)::Bool && eltype(A) === Method
+        # override usual show method for Vector{Method}: don't abbreviate long lists
+        io = IOContext(io, :limit => false)
+    end
+
+    dstmp = displaysize(io)
+    if get(io, :limit, false)::Bool && dstmp[1]-6 <= 0
+        return print(io, " …")
+    else
+        println(io)
+    end
+
+    # 2) update typeinfo
+    #
+    # it must come after printing the summary, which can exploit :typeinfo itself
+    # (e.g. views)
+    # we assume this function is always called from top-level, i.e. that it's not nested
+    # within another "show" method; hence we always print the summary, without
+    # checking for current :typeinfo (this could be changed in the future)
+    ds = (dstmp[1]-2, dstmp[2])
+    io = IOContext(io, :typeinfo => eltype(A), :displaysize => ds)
+
+    # 2) show actual content
+    recur_io = IOContext(io, :SHOWN_SET => A)
+    Base.print_array(recur_io, A)
+end
 
 
 
