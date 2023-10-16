@@ -61,6 +61,21 @@ a[[:a, :b]] # two rows: 2×10 NamedRowMatrix
 a[:, 3] # one column: 3-element NamedRowVector
 a[:, 2:3] # two columns: 3×2 NamedRowMatrix
 ```
+
+### Inverted Indexing
+
+Finally, it is also possible to use inverted indexes with NamedRowArrays by using the exported
+`Not` struct from InvertedIndices.jl. In contrast to the usual behavior of `Not`, using row
+names that do not exist will not throw an error, but will silently ignore them.
+
+```julia
+v[Not(:a)] # 3-element NamedRowVector
+v[Not(:a, :c)] # 2-element NamedRowVector
+
+a[Not(:a)] # three rows: 3×10 NamedRowMatrix
+a[Not(:a), 2:3] # three rows, two columns: 3×2 NamedRowMatrix
+a[Not(:a), 2] # 3-element NamedRowVector
+```
 """
 struct NamedRowArray{T,N,D,R} <: AbstractArray{T,N}
     data::D # D <:AbstractArray, enforced in constructor to avoid dispatch bugs
@@ -227,6 +242,7 @@ end
 @inline Base.getindex(A::NamedRowVector, I::InvertedIndex{<:AbstractVector{Symbol}}) = getindex(A, Not(I.skip...))
 @inline Base.getindex(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}) = getindex(A, Not(I.skip...))
 @inline Base.getindex(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}, i) = getindex(A, Not(I.skip...), i)
+@inline Base.getindex(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}, i::Integer) = getindex(A, Not(I.skip...), i)
 
 @propagate_inbounds function Base.getindex(A::NamedRowVector, idx::InvertedIndex)
     idx_int = _inverted_symbols_to_ints(A, idx)
@@ -244,6 +260,10 @@ end
 @propagate_inbounds function Base.getindex(A::NamedRowMatrix, idx::InvertedIndex, I)
     idx_int = _inverted_symbols_to_ints(A, idx)
     return NamedRowMatrix(A.data[idx_int, I], reaxis(A, idx_int))
+end
+@propagate_inbounds function Base.getindex(A::NamedRowMatrix, idx::InvertedIndex, I::Integer)
+    idx_int = _inverted_symbols_to_ints(A, idx)
+    return NamedRowVector(A.data[idx_int, I], reaxis(A, idx_int))
 end
 @propagate_inbounds function Base.getindex(A::NamedRowMatrix, idx::InvertedIndex{<:Union{Symbol,InvertedIndices.NotMultiIndex}})
     idx_int = _inverted_symbols_to_ints(A, idx)
@@ -270,7 +290,6 @@ function _inverted_symbols_to_ints(A, idx::InvertedIndex{InvertedIndices.NotMult
     return Not(skips)
 end
 
-@propagate_inbounds Base.getindex(A::NamedRowMatrix, idx::InvertedIndex, I::Int) = NamedRowVector(A.data[idx, I], reaxis(A, idx))
 
 function Base.to_index(A::NamedRowArray, idx::Symbol)
     ind = findfirst(==(idx), A.rownames)

@@ -274,7 +274,13 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
                 @test an[nsymbol] isa NamedRowMatrix
                 @test collect(an[nsymbol].rownames) == collect(an.rownames)[nint]
 
-                @show nsymbol
+                @test an[nint, 2] == a[nint, 2]
+                @test an[nint, 2] isa NamedRowVector
+
+                @test an[nsymbol, 2] == a[nint, 2]
+                @test an[nsymbol, 2] isa NamedRowVector
+                @test collect(an[nsymbol, 2].rownames) == collect(an.rownames)[nint]
+
                 @test_throws ArgumentError an[nsymbol, nsymbol]
                 @test_throws ArgumentError an[1, nsymbol]
             end
