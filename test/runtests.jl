@@ -13,7 +13,7 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
 
 @testset "NamedRowArrays.jl" begin
     n = 4
-    m = 4
+    m = 5
     v = rand(n)
     a = rand(n, m)
     rownames = Symbol.('a':'z')[1:n]
@@ -51,6 +51,8 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             isodd.(1:m),
             collect(isodd.(1:m)),
            ]
+    nsymbols = [Not(:a), Not(:a, :c), Not([:b, :d]), Not(:d, :b), Not([:c, :a]), Not(:foo, :b), Not(:foo)]
+    nints = [Not(1), Not(1, 3), Not([2, 4]), Not(4, 2), Not([3, 1]), Not(2), (:)]
 
     @testset "Creating" begin
         vn = NamedRowArray(v, rownames)
@@ -178,6 +180,17 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             @test vn[rownames[2:3]].rownames == vn.rownames[2:3]
             @test_throws ArgumentError vn[[:foo, :a]]
             @test_throws ArgumentError vn[["foo", "a"]]
+
+            # inverted
+            for (nsymbol, nint) in zip(nsymbols, nints)
+                @test vn[nint] == v[nint]
+                @test vn[nint] isa NamedRowVector
+                @test collect(vn[nint].rownames) == collect(vn.rownames)[nint]
+
+                @test vn[nsymbol] == v[nint]
+                @test vn[nsymbol] isa NamedRowVector
+                @test collect(vn[nsymbol].rownames) == collect(vn.rownames)[nint]
+            end
         end
 
         @testset "Matrix" begin
@@ -201,6 +214,7 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             @test an[rownames[2],3] == a[2,3]
             @test_throws ArgumentError an[:foo,1]
             @test_throws ArgumentError an["foo",1]
+            @test_throws ArgumentError an[rownames[1],rownames[1]]
 
             # multiple elements
             for idx in idxs
@@ -240,6 +254,30 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             @test an[rownames[2:3],1].rownames == an.rownames[2:3]
             @test_throws ArgumentError an[[:foo, :a],1]
             @test_throws ArgumentError an[["foo", "a"],1]
+
+            # inverted
+            for (nsymbol, nint) in zip(nsymbols, nints)
+                for idx2 in idxs2
+                    @test an[nint, idx2] == a[nint, idx2]
+                    @test an[nint, idx2] isa NamedRowMatrix
+                    @test collect(an[nint, idx2].rownames) == collect(an.rownames)[nint]
+
+                    @test an[nsymbol, idx2] == a[nint, idx2]
+                    @test an[nsymbol, idx2] isa NamedRowMatrix
+                    @test collect(an[nsymbol, idx2].rownames) == collect(an.rownames)[nint]
+                end
+
+                @test an[nint] == a[nint]
+                @test !(an[nint] isa NamedRowArray)
+
+                @test an[nsymbol] == a[nint, :]
+                @test an[nsymbol] isa NamedRowMatrix
+                @test collect(an[nsymbol].rownames) == collect(an.rownames)[nint]
+
+                @show nsymbol
+                @test_throws ArgumentError an[nsymbol, nsymbol]
+                @test_throws ArgumentError an[1, nsymbol]
+            end
         end
     end
 
@@ -310,6 +348,7 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             @test anc[rownames[2],3] == 4
             @test_throws ArgumentError (anc[:foo,1] = 4)
             @test_throws ArgumentError (anc["foo",1] = 4)
+            @test_throws ArgumentError (anc[rownames[1],rownames[1]] = 4)
 
             # multiple elements
             for idx in idxs

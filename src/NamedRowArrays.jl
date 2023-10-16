@@ -1,8 +1,9 @@
 module NamedRowArrays
 
-using Base: @propagate_inbounds
+using Base: @propagate_inbounds, to_index
+using InvertedIndices
 
-export NamedRowArray, NamedRowVector, NamedRowMatrix
+export NamedRowArray, NamedRowVector, NamedRowMatrix, Not
 
 """
 A NamedRowArray is an AbstractArray that wraps another AbstractArray (only
@@ -186,6 +187,8 @@ const Idx = Union{Colon,AbstractArray{Int},BitVector,AbstractArray{Bool}}
 
 reaxis(A::NamedRowArray, I::Idx) = A.rownames[I]
 reaxis(A::NamedRowMatrix, I::Idx, _) = A.rownames[I]
+reaxis(A::NamedRowArray, I::InvertedIndex) = collect(A.rownames)[I]
+reaxis(A::NamedRowMatrix, I::InvertedIndex, _) = collect(A.rownames)[I]
 
 @propagate_inbounds function Base.getindex(A::NamedRowArray, idxs::Idx...)
     NamedRowArray(A.data[idxs...], reaxis(A, idxs...))
@@ -209,17 +212,81 @@ end
 @propagate_inbounds Base.getindex(A::NamedRowMatrix, idx::Symbol, I=(:)) = getindex(A, to_index(A, idx), I)
 @propagate_inbounds Base.getindex(A::NamedRowVector, idxs::AbstractVector{Symbol}) = getindex(A, to_index.((A,), idxs))
 @propagate_inbounds Base.getindex(A::NamedRowMatrix, idxs::AbstractVector{Symbol}, I=(:)) = getindex(A, to_index.((A,), idxs), I)
+@inline Base.getindex(A::NamedRowMatrix, idx, idx2::Symbol) = throw(ArgumentError("only named rows are allowed, not columns"))
+@inline Base.getindex(A::NamedRowMatrix, idx::Symbol, idx2::Symbol) = throw(ArgumentError("only named rows are allowed, not columns"))
 
 @propagate_inbounds Base.setindex!(A::NamedRowVector, v, idx::Symbol) = setindex!(A, v, to_index(A, idx))
 @propagate_inbounds Base.setindex!(A::NamedRowMatrix, v, idx::Symbol, I=(:)) = setindex!(A, v, to_index(A, idx), I)
 @propagate_inbounds Base.setindex!(A::NamedRowVector, v, idxs::AbstractVector{Symbol}) = setindex!(A, v, to_index.((A,), idxs))
 @propagate_inbounds Base.setindex!(A::NamedRowMatrix, v, idxs::AbstractVector{Symbol}, I=(:)) = setindex!(A, v, to_index.((A,), idxs), I)
+@propagate_inbounds @inline Base.setindex!(A::NamedRowMatrix, v, idx, idx2::Symbol) = throw(ArgumentError("only named rows are allowed, not columns"))
+@propagate_inbounds @inline Base.setindex!(A::NamedRowMatrix, v, idx::Symbol, idx2::Symbol) = throw(ArgumentError("only named rows are allowed, not columns"))
 
 
-function to_index(A::NamedRowArray, idx::Symbol)
+# inverted indices
+@inline Base.getindex(A::NamedRowVector, I::InvertedIndex{<:AbstractVector{Symbol}}) = getindex(A, Not(I.skip...))
+@inline Base.getindex(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}) = getindex(A, Not(I.skip...))
+@inline Base.getindex(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}, i) = getindex(A, Not(I.skip...), i)
+
+@propagate_inbounds function Base.getindex(A::NamedRowVector, idx::InvertedIndex)
+    idx_int = _inverted_symbols_to_ints(A, idx)
+    return NamedRowVector(A.data[idx_int], reaxis(A, idx_int))
+end
+@propagate_inbounds function Base.getindex(A::NamedRowMatrix, idx, I::InvertedIndex)
+    throw(ArgumentError("only named rows are allowed, not columns"))
+end
+@propagate_inbounds function Base.getindex(A::NamedRowMatrix, idx::InvertedIndex, I::InvertedIndex)
+    throw(ArgumentError("only named rows are allowed, not columns"))
+end
+@propagate_inbounds function Base.getindex(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}, i::InvertedIndex)
+    throw(ArgumentError("only named rows are allowed, not columns"))
+end
+@propagate_inbounds function Base.getindex(A::NamedRowMatrix, idx::InvertedIndex, I)
+    idx_int = _inverted_symbols_to_ints(A, idx)
+    return NamedRowMatrix(A.data[idx_int, I], reaxis(A, idx_int))
+end
+@propagate_inbounds function Base.getindex(A::NamedRowMatrix, idx::InvertedIndex{<:Union{Symbol,InvertedIndices.NotMultiIndex}})
+    idx_int = _inverted_symbols_to_ints(A, idx)
+    return NamedRowMatrix(A.data[idx_int, (:)], reaxis(A, idx_int))
+end
+
+_inverted_symbols_to_ints(A, idx) = idx
+function _inverted_symbols_to_ints(A, idx::InvertedIndex{Symbol})
+    try
+        Not(to_index(A, idx.skip))
+    catch
+        (:)
+    end
+end
+function _inverted_symbols_to_ints(A, idx::InvertedIndex{InvertedIndices.NotMultiIndex}) 
+    skips = Int64[]
+    for i in idx.skip.indices
+        try
+            ind = to_index(A, i)
+            push!(skips, ind)
+        catch
+        end
+    end
+    return Not(skips)
+end
+
+@propagate_inbounds Base.getindex(A::NamedRowMatrix, idx::InvertedIndex, I::Int) = NamedRowVector(A.data[idx, I], reaxis(A, idx))
+
+function Base.to_index(A::NamedRowArray, idx::Symbol)
     ind = findfirst(==(idx), A.rownames)
     isnothing(ind) && throw(ArgumentError("invalid index: $idx"))
     return ind
+end
+
+function Base.to_index(A::NamedRowArray, I::InvertedIndices.NotMultiIndex)
+    [to_index(A, idx) for idx in I.indices]
+end
+
+function Base.to_indices(A::NamedRowArray, inds, I::Tuple{InvertedIndex{InvertedIndices.NotMultiIndex}, Vararg{Any}})
+    new_indices = to_indices(A, inds, (I[1].skip, Base.tail(I)...))
+    skips = InvertedIndices.uniquesort(new_indices[1])
+    picks = InvertedIndices.spanned_indices(inds, skips)[1]
+    return (InvertedIndices.InvertedIndexIterator(skips, picks), Base.tail(new_indices)...)
 end
 
 # Cartesian iteration
