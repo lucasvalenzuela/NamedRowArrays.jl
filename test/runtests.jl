@@ -163,6 +163,11 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             @test_throws ArgumentError vn[:foo]
             @test_throws ArgumentError vn["foo"]
 
+            @test @view(vn[rownames[1]]) == @view(v[1])
+            @test @view(vn[rownames[2]]) == @view(v[2])
+            @test_throws ArgumentError @view(vn[:foo])
+            @test_throws ArgumentError @view(vn["foo"])
+
             # multiple elements
             for idx in idxs
                 @test vn[idx] == v[idx]
@@ -181,6 +186,13 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             @test_throws ArgumentError vn[[:foo, :a]]
             @test_throws ArgumentError vn[["foo", "a"]]
 
+            @test @view(vn[rownames[2:3]]) == v[2:3]
+            @test @view(vn[rownames[2:3]]) isa NamedRowVector
+            @test @view(vn[rownames[2:3]]).data isa SubArray
+            @test @view(vn[rownames[2:3]]).rownames == vn.rownames[2:3]
+            @test_throws ArgumentError @view(vn[[:foo, :a]])
+            @test_throws ArgumentError @view(vn[["foo", "a"]])
+
             # inverted
             for (nsymbol, nint) in zip(nsymbols, nints)
                 @test vn[nint] == v[nint]
@@ -190,6 +202,16 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
                 @test vn[nsymbol] == v[nint]
                 @test vn[nsymbol] isa NamedRowVector
                 @test collect(vn[nsymbol].rownames) == collect(vn.rownames)[nint]
+
+                @test @view(vn[nint]) == v[nint]
+                @test @view(vn[nint]) isa NamedRowVector
+                @test @view(vn[nint]).data isa SubArray
+                @test collect(@view(vn[nint]).rownames) == collect(vn.rownames)[nint]
+
+                @test @view(vn[nsymbol]) == v[nint]
+                @test @view(vn[nsymbol]) isa NamedRowVector
+                @test @view(vn[nsymbol]).data isa SubArray
+                @test collect(@view(vn[nsymbol]).rownames) == collect(vn.rownames)[nint]
             end
         end
 
@@ -216,6 +238,12 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             @test_throws ArgumentError an["foo",1]
             @test_throws ArgumentError an[rownames[1],rownames[1]]
 
+            @test @view(an[rownames[1],1]) == @view(a[1,1])
+            @test @view(an[rownames[2],3]) == @view(a[2,3])
+            @test_throws ArgumentError @view(an[:foo,1])
+            @test_throws ArgumentError @view(an["foo",1])
+            @test_throws ArgumentError @view(an[rownames[1],rownames[1]])
+
             # multiple elements
             for idx in idxs
                 for idx2 in idxs2
@@ -240,6 +268,18 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
                 @test an[rownames[2:3],idx2].rownames == an.rownames[2:3]
                 @test_throws ArgumentError an[[:foo, :a],idx2]
                 @test_throws ArgumentError an[["foo", "a"],idx2]
+
+                @test @view(an[rownames[1],idx2]) == a[1,idx2]
+                @test @view(an[rownames[2],idx2]) == a[2,idx2]
+                @test_throws ArgumentError @view(an[:foo,idx2])
+                @test_throws ArgumentError @view(an["foo",idx2])
+
+                @test @view(an[rownames[2:3],idx2]) == a[2:3,idx2]
+                @test @view(an[rownames[2:3],idx2]) isa NamedRowMatrix
+                @test @view(an[rownames[2:3],idx2]).data isa SubArray
+                @test @view(an[rownames[2:3],idx2]).rownames == an.rownames[2:3]
+                @test_throws ArgumentError @view(an[[:foo, :a],idx2])
+                @test_throws ArgumentError @view(an[["foo", "a"],idx2])
             end
 
             @test an[rownames[1]] == a[1,:]
@@ -255,6 +295,20 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             @test_throws ArgumentError an[[:foo, :a],1]
             @test_throws ArgumentError an[["foo", "a"],1]
 
+            @test @view(an[rownames[1]]) == a[1,:]
+            @test @view(an[rownames[2]]) == a[2,:]
+            @test @view(an[rownames[1]]) isa SubArray
+            @test_throws ArgumentError @view(an[:foo])
+            @test_throws ArgumentError @view(an["foo"])
+
+            @test @view(an[rownames[2:3],1]) == a[2:3,1]
+            @test @view(an[rownames[2:3],3]) == a[2:3,3]
+            @test @view(an[rownames[2:3],1]) isa NamedRowVector
+            @test @view(an[rownames[2:3],1]).data isa SubArray
+            @test @view(an[rownames[2:3],1]).rownames == an.rownames[2:3]
+            @test_throws ArgumentError @view(an[[:foo, :a],1])
+            @test_throws ArgumentError @view(an[["foo", "a"],1])
+
             # inverted
             for (nsymbol, nint) in zip(nsymbols, nints)
                 for idx2 in idxs2
@@ -265,6 +319,16 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
                     @test an[nsymbol, idx2] == a[nint, idx2]
                     @test an[nsymbol, idx2] isa NamedRowMatrix
                     @test collect(an[nsymbol, idx2].rownames) == collect(an.rownames)[nint]
+
+                    @test @view(an[nint, idx2]) == a[nint, idx2]
+                    @test @view(an[nint, idx2]) isa NamedRowMatrix
+                    @test @view(an[nint, idx2]).data isa SubArray
+                    @test collect(@view(an[nint, idx2]).rownames) == collect(an.rownames)[nint]
+
+                    @test @view(an[nsymbol, idx2]) == a[nint, idx2]
+                    @test @view(an[nsymbol, idx2]) isa NamedRowMatrix
+                    @test @view(an[nsymbol, idx2]).data isa SubArray
+                    @test collect(@view(an[nsymbol, idx2]).rownames) == collect(an.rownames)[nint]
                 end
 
                 @test an[nint] == a[nint]

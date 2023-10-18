@@ -214,9 +214,16 @@ end
 @propagate_inbounds Base.getindex(A::NamedRowMatrix, idx::Int, I::Int) = A.data[idx, I]
 @propagate_inbounds Base.getindex(A::NamedRowMatrix, idx::Idx, I::Int) = NamedRowVector(A.data[idx, I], reaxis(A, idx))
 
+@propagate_inbounds Base.view(A::NamedRowVector, idx::Symbol) = view(A.data, to_index(A, idx))
+@propagate_inbounds Base.view(A::NamedRowMatrix, idx::Symbol, I=(:)) = view(A.data, to_index(A, idx), I)
+@propagate_inbounds Base.view(A::NamedRowVector, idxs::AbstractVector{Symbol}) = view(A, to_index.((A,), idxs))
+@propagate_inbounds Base.view(A::NamedRowMatrix, idxs::AbstractVector{Symbol}, I=(:)) = view(A, to_index.((A,), idxs), I)
+
 # To resolve ambiguities, we need several definitions
 @propagate_inbounds Base.view(A::NamedRowArray, idxs::Idx...) = NamedRowArray(view(A.data, idxs...), reaxis(A, idxs...))
-@propagate_inbounds Base.view(A::NamedRowMatrix, idx::Int, I::Idx) = view(A.data, idx, I)
+@propagate_inbounds Base.view(A::NamedRowVector, idx::Int) = view(A.data, idx)
+@propagate_inbounds Base.view(A::NamedRowMatrix, idx::Int, I) = view(A.data, idx, I)
+@propagate_inbounds Base.view(A::NamedRowMatrix, idx::Idx, I::Int) = NamedRowArray(view(A.data, idx, I), reaxis(A, idx))
 
 # Setindex is so much simpler. Just assign it to the data:
 @propagate_inbounds Base.setindex!(A::NamedRowArray, v, idxs::Union{Idx,Int}...) = (A.data[idxs...] = v)
@@ -268,6 +275,38 @@ end
 @propagate_inbounds function Base.getindex(A::NamedRowMatrix, idx::InvertedIndex{<:Union{Symbol,InvertedIndices.NotMultiIndex}})
     idx_int = _inverted_symbols_to_ints(A, idx)
     return NamedRowMatrix(A.data[idx_int, (:)], reaxis(A, idx_int))
+end
+
+# inverted indices
+@inline Base.view(A::NamedRowVector, I::InvertedIndex{<:AbstractVector{Symbol}}) = view(A, Not(I.skip...))
+@inline Base.view(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}) = view(A, Not(I.skip...))
+@inline Base.view(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}, i) = view(A, Not(I.skip...), i)
+@inline Base.view(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}, i::Integer) = view(A, Not(I.skip...), i)
+
+@propagate_inbounds function Base.view(A::NamedRowVector, idx::InvertedIndex)
+    idx_int = _inverted_symbols_to_ints(A, idx)
+    return NamedRowVector(view(A.data, idx_int), reaxis(A, idx_int))
+end
+@propagate_inbounds function Base.view(A::NamedRowMatrix, idx, I::InvertedIndex)
+    throw(ArgumentError("only named rows are allowed, not columns"))
+end
+@propagate_inbounds function Base.view(A::NamedRowMatrix, idx::InvertedIndex, I::InvertedIndex)
+    throw(ArgumentError("only named rows are allowed, not columns"))
+end
+@propagate_inbounds function Base.view(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}, i::InvertedIndex)
+    throw(ArgumentError("only named rows are allowed, not columns"))
+end
+@propagate_inbounds function Base.view(A::NamedRowMatrix, idx::InvertedIndex, I)
+    idx_int = _inverted_symbols_to_ints(A, idx)
+    return NamedRowMatrix(view(A.data, idx_int, I), reaxis(A, idx_int))
+end
+@propagate_inbounds function Base.view(A::NamedRowMatrix, idx::InvertedIndex, I::Integer)
+    idx_int = _inverted_symbols_to_ints(A, idx)
+    return NamedRowVector(view(A.data, idx_int, I), reaxis(A, idx_int))
+end
+@propagate_inbounds function Base.view(A::NamedRowMatrix, idx::InvertedIndex{<:Union{Symbol,InvertedIndices.NotMultiIndex}})
+    idx_int = _inverted_symbols_to_ints(A, idx)
+    return NamedRowMatrix(view(A.data, idx_int, (:)), reaxis(A, idx_int))
 end
 
 _inverted_symbols_to_ints(A, idx) = idx
