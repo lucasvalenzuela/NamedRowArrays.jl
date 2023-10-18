@@ -1,7 +1,7 @@
 name = "NamedRowArrays"
 uuid = "24b07f33-2be9-49a8-8558-3b162e5e4048"
 authors = ["Lucas Valenzuela"]
-version = "0.1.6"
+version = "0.1.7"
 
 [deps]
 InvertedIndices = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"
