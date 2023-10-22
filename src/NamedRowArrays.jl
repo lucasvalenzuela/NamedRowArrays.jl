@@ -8,7 +8,7 @@ export NamedRowArray, NamedRowVector, NamedRowMatrix, Not
 """
 A NamedRowArray is an AbstractArray that wraps another AbstractArray (only
 AbstractVector and AbstractMatrix, however) and adds row names to the first array
-dimension. AxisArrays can be indexed by using the named rows as an alternative to
+dimension. NamedRowArrays can be indexed by using the named rows as an alternative to
 positional indexing by dimension.
 
 ### Type parameters
@@ -16,7 +16,7 @@ positional indexing by dimension.
 The NamedRowArray contains several type parameters:
 
 ```julia
-struct AxisArray{T,N,D,R} <: AbstractArray{T,N}
+struct NamedRowArray{T,N,D,R} <: AbstractArray{T,N}
 ```
 - `T` : the elemental type of the AbstractArray
 - `N` : the number of dimensions
