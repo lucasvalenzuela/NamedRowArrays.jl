@@ -113,7 +113,7 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
         @test similar(vn).rownames == vn.rownames
         @test similar(vn, Int) isa NamedRowVector{Int}
         @test similar(vn, Int).rownames == vn.rownames
-        @test reinterpret(Int64, vn) isa NamedRowVector{Int}
+        @test reinterpret(Int64, vn) isa NamedRowVector{Int64}
 
         @test copy(vn) !== vn
         @test copy(vn).data !== vn.data
@@ -139,7 +139,7 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
         @test similar(an).rownames == an.rownames
         @test similar(an, Int) isa NamedRowMatrix{Int}
         @test similar(an, Int).rownames == an.rownames
-        @test reinterpret(Int64, an) isa NamedRowMatrix{Int}
+        @test reinterpret(Int64, an) isa NamedRowMatrix{Int64}
 
         @test copy(an) !== an
         @test copy(an).data !== an.data
