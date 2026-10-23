@@ -4,6 +4,7 @@
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://lucasvalenzuela.github.io/NamedRowArrays.jl/dev/)
 [![Build Status](https://github.com/lucasvalenzuela/NamedRowArrays.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/lucasvalenzuela/NamedRowArrays.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/lucasvalenzuela/NamedRowArrays.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/lucasvalenzuela/NamedRowArrays.jl)
+[![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 
 This package for the Julia language provides an array type (the `NamedRowArray`) that knows about its row names.
@@ -11,16 +12,16 @@ This allows for indexing by name in a straightforward manner in addition to the 
 
 ## Installation
 
-The latest version of the package is available for Julia 1.9 and newer versions and can be installed with:
+This package is available through the public registry
+[CosmoAnalysisRegistry](https://github.com/lucasvalenzuela/CosmoAnalysisRegistry). Add the registry
+once per Julia installation, together with the General registry, which provides the dependencies:
 ```julia
 using Pkg
-Pkg.add("https://github.com/lucasvalenzuela/NamedRowArrays.jl")
+Pkg.Registry.add("General")
+Pkg.Registry.add(url="https://github.com/lucasvalenzuela/CosmoAnalysisRegistry")
 ```
 
-For users of the JuliaCosmoSims repository, follow
-[these instructions](https://gitlab.com/juliacosmosims/JuliaCosmoSimsDocs) to install the local registry,
-after which the package can be regularly installed with:
+The package requires Julia 1.12 or newer and can then be installed with:
 ```julia
-using Pkg
 Pkg.add("NamedRowArrays")
 ```

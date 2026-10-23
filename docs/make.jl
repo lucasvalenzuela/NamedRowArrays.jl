@@ -1,12 +1,15 @@
 using NamedRowArrays
 using Documenter
+using DocumenterInterLinks
 
 DocMeta.setdocmeta!(NamedRowArrays, :DocTestSetup, :(using NamedRowArrays); recursive=true)
 
+links = InterLinks("Julia" => "https://docs.julialang.org/en/v1/")
+
 makedocs(;
+    plugins=[links],
     modules=[NamedRowArrays],
     authors="Lucas Valenzuela",
-    repo="https://github.com/lucasvalenzuela/NamedRowArrays.jl/blob/{commit}{path}#{line}",
     sitename="NamedRowArrays.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
@@ -14,12 +17,7 @@ makedocs(;
         edit_link="main",
         assets=String[],
     ),
-    pages=[
-        "Home" => "index.md",
-    ],
+    pages=["Home" => "index.md"],
 )
 
-deploydocs(;
-    repo="github.com/lucasvalenzuela/NamedRowArrays.jl",
-    devbranch="main",
-)
+deploydocs(; repo="github.com/lucasvalenzuela/NamedRowArrays.jl", devbranch="main")

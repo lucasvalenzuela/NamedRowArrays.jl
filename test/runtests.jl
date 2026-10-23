@@ -1,5 +1,8 @@
 using NamedRowArrays
 using Test
+using Aqua
+using ExplicitImports
+using JET
 
 using FillArrays
 
@@ -12,45 +15,26 @@ fill4(a::AbstractMatrix, idx, idx2::Colon) = fill(4, count(!=(false), idx), size
 fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 2))
 
 @testset "NamedRowArrays.jl" begin
+    @testset "Code quality" begin
+        Aqua.test_all(NamedRowArrays)
+        @test check_no_stale_explicit_imports(NamedRowArrays) === nothing
+        @test check_no_self_qualified_accesses(NamedRowArrays) === nothing
+        if JET.JET_AVAILABLE
+            JET.test_package(NamedRowArrays; target_modules=(NamedRowArrays,))
+        end
+    end
+
     n = 4
     m = 5
     v = rand(n)
     a = rand(n, m)
     rownames = Symbol.('a':'z')[1:n]
 
-    arrs = [
-          1:n,
-          rand(m, n)',
-          transpose(rand(m, n)),
-          Fill(1.0, 4, m),
-          @view rand(2n, m)[1:n, :]
-         ]
+    arrs = [1:n, rand(m, n)', transpose(rand(m, n)), Fill(1.0, 4, m), @view rand(2n, m)[1:n, :]]
 
-    idxs = [
-            (:),
-            1:n,
-            2:3,
-            3:3,
-            n:-1:1,
-            [1,3],
-            [3,1],
-            [3],
-            isodd.(1:n),
-            collect(isodd.(1:n)),
-           ]
+    idxs = [(:), 1:n, 2:3, 3:3, n:-1:1, [1, 3], [3, 1], [3], isodd.(1:n), collect(isodd.(1:n))]
 
-    idxs2 = [
-            (:),
-            1:m,
-            2:3,
-            3:3,
-            m:-1:1,
-            [1,3],
-            [3,1],
-            [3],
-            isodd.(1:m),
-            collect(isodd.(1:m)),
-           ]
+    idxs2 = [(:), 1:m, 2:3, 3:3, m:-1:1, [1, 3], [3, 1], [3], isodd.(1:m), collect(isodd.(1:m))]
     nsymbols = [Not(:a), Not(:a, :c), Not([:b, :d]), Not(:d, :b), Not([:c, :a]), Not(:foo, :b), Not(:foo)]
     nints = [Not(1), Not(1, 3), Not([2, 4]), Not(4, 2), Not([3, 1]), Not(2), (:)]
 
@@ -156,7 +140,7 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             @test vn[1] == v[1]
             @test vn[2] == v[2]
             @test_throws BoundsError vn[0]
-            @test_throws BoundsError vn[n+1]
+            @test_throws BoundsError vn[n + 1]
 
             @test vn[rownames[1]] == v[1]
             @test vn[rownames[2]] == v[2]
@@ -219,95 +203,96 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             # single elements
             @test an[1] == a[1]
             @test an[2] == a[2]
-            @test an[n+1] == a[n+1]
+            @test an[n + 1] == a[n + 1]
             @test_throws BoundsError an[0]
-            @test_throws BoundsError an[length(an)+1]
+            @test_throws BoundsError an[length(an) + 1]
 
-            @test an[1,1] == a[1,1]
-            @test an[2,3] == a[2,3]
-            @test an[n,3] == a[n,3]
-            @test_throws BoundsError an[n+1,1]
-            @test_throws BoundsError an[0,1]
+            @test an[1, 1] == a[1, 1]
+            @test an[2, 3] == a[2, 3]
+            @test an[n, 3] == a[n, 3]
+            @test_throws BoundsError an[n + 1, 1]
+            @test_throws BoundsError an[0, 1]
 
-            @test an[CartesianIndex(1,2)] == a[CartesianIndex(1,2)]
-            @test an[[CartesianIndex(1,2),CartesianIndex(2,2)]] == a[[CartesianIndex(1,2),CartesianIndex(2,2)]]
+            @test an[CartesianIndex(1, 2)] == a[CartesianIndex(1, 2)]
+            @test an[[CartesianIndex(1, 2), CartesianIndex(2, 2)]] ==
+                  a[[CartesianIndex(1, 2), CartesianIndex(2, 2)]]
 
-            @test an[rownames[1],1] == a[1,1]
-            @test an[rownames[2],3] == a[2,3]
-            @test_throws ArgumentError an[:foo,1]
-            @test_throws ArgumentError an["foo",1]
-            @test_throws ArgumentError an[rownames[1],rownames[1]]
+            @test an[rownames[1], 1] == a[1, 1]
+            @test an[rownames[2], 3] == a[2, 3]
+            @test_throws ArgumentError an[:foo, 1]
+            @test_throws ArgumentError an["foo", 1]
+            @test_throws ArgumentError an[rownames[1], rownames[1]]
 
-            @test @view(an[rownames[1],1]) == @view(a[1,1])
-            @test @view(an[rownames[2],3]) == @view(a[2,3])
-            @test_throws ArgumentError @view(an[:foo,1])
-            @test_throws ArgumentError @view(an["foo",1])
-            @test_throws ArgumentError @view(an[rownames[1],rownames[1]])
+            @test @view(an[rownames[1], 1]) == @view(a[1, 1])
+            @test @view(an[rownames[2], 3]) == @view(a[2, 3])
+            @test_throws ArgumentError @view(an[:foo, 1])
+            @test_throws ArgumentError @view(an["foo", 1])
+            @test_throws ArgumentError @view(an[rownames[1], rownames[1]])
 
             # multiple elements
             for idx in idxs
                 for idx2 in idxs2
-                    @test an[idx,idx2] == a[idx,idx2]
-                    @test an[idx,idx2] isa NamedRowMatrix
-                    @test all(an[idx,idx2].rownames .== rownames[idx])
+                    @test an[idx, idx2] == a[idx, idx2]
+                    @test an[idx, idx2] isa NamedRowMatrix
+                    @test all(an[idx, idx2].rownames .== rownames[idx])
                 end
 
-                @test an[idx,2] == a[idx,2]
-                @test an[idx,2] isa NamedRowVector
-                @test all(an[idx,2].rownames .== rownames[idx])
+                @test an[idx, 2] == a[idx, 2]
+                @test an[idx, 2] isa NamedRowVector
+                @test all(an[idx, 2].rownames .== rownames[idx])
             end
 
             for idx2 in idxs2
-                @test an[rownames[1],idx2] == a[1,idx2]
-                @test an[rownames[2],idx2] == a[2,idx2]
-                @test_throws ArgumentError an[:foo,idx2]
-                @test_throws ArgumentError an["foo",idx2]
+                @test an[rownames[1], idx2] == a[1, idx2]
+                @test an[rownames[2], idx2] == a[2, idx2]
+                @test_throws ArgumentError an[:foo, idx2]
+                @test_throws ArgumentError an["foo", idx2]
 
-                @test an[rownames[2:3],idx2] == a[2:3,idx2]
-                @test an[rownames[2:3],idx2] isa NamedRowMatrix
-                @test an[rownames[2:3],idx2].rownames == an.rownames[2:3]
-                @test_throws ArgumentError an[[:foo, :a],idx2]
-                @test_throws ArgumentError an[["foo", "a"],idx2]
+                @test an[rownames[2:3], idx2] == a[2:3, idx2]
+                @test an[rownames[2:3], idx2] isa NamedRowMatrix
+                @test an[rownames[2:3], idx2].rownames == an.rownames[2:3]
+                @test_throws ArgumentError an[[:foo, :a], idx2]
+                @test_throws ArgumentError an[["foo", "a"], idx2]
 
-                @test @view(an[rownames[1],idx2]) == a[1,idx2]
-                @test @view(an[rownames[2],idx2]) == a[2,idx2]
-                @test_throws ArgumentError @view(an[:foo,idx2])
-                @test_throws ArgumentError @view(an["foo",idx2])
+                @test @view(an[rownames[1], idx2]) == a[1, idx2]
+                @test @view(an[rownames[2], idx2]) == a[2, idx2]
+                @test_throws ArgumentError @view(an[:foo, idx2])
+                @test_throws ArgumentError @view(an["foo", idx2])
 
-                @test @view(an[rownames[2:3],idx2]) == a[2:3,idx2]
-                @test @view(an[rownames[2:3],idx2]) isa NamedRowMatrix
-                @test @view(an[rownames[2:3],idx2]).data isa SubArray
-                @test @view(an[rownames[2:3],idx2]).rownames == an.rownames[2:3]
-                @test_throws ArgumentError @view(an[[:foo, :a],idx2])
-                @test_throws ArgumentError @view(an[["foo", "a"],idx2])
+                @test @view(an[rownames[2:3], idx2]) == a[2:3, idx2]
+                @test @view(an[rownames[2:3], idx2]) isa NamedRowMatrix
+                @test @view(an[rownames[2:3], idx2]).data isa SubArray
+                @test @view(an[rownames[2:3], idx2]).rownames == an.rownames[2:3]
+                @test_throws ArgumentError @view(an[[:foo, :a], idx2])
+                @test_throws ArgumentError @view(an[["foo", "a"], idx2])
             end
 
-            @test an[rownames[1]] == a[1,:]
-            @test an[rownames[2]] == a[2,:]
+            @test an[rownames[1]] == a[1, :]
+            @test an[rownames[2]] == a[2, :]
             @test an[rownames[1]] isa Vector
             @test_throws ArgumentError an[:foo]
             @test_throws ArgumentError an["foo"]
 
-            @test an[rownames[2:3],1] == a[2:3,1]
-            @test an[rownames[2:3],3] == a[2:3,3]
-            @test an[rownames[2:3],1] isa NamedRowVector
-            @test an[rownames[2:3],1].rownames == an.rownames[2:3]
-            @test_throws ArgumentError an[[:foo, :a],1]
-            @test_throws ArgumentError an[["foo", "a"],1]
+            @test an[rownames[2:3], 1] == a[2:3, 1]
+            @test an[rownames[2:3], 3] == a[2:3, 3]
+            @test an[rownames[2:3], 1] isa NamedRowVector
+            @test an[rownames[2:3], 1].rownames == an.rownames[2:3]
+            @test_throws ArgumentError an[[:foo, :a], 1]
+            @test_throws ArgumentError an[["foo", "a"], 1]
 
-            @test @view(an[rownames[1]]) == a[1,:]
-            @test @view(an[rownames[2]]) == a[2,:]
+            @test @view(an[rownames[1]]) == a[1, :]
+            @test @view(an[rownames[2]]) == a[2, :]
             @test @view(an[rownames[1]]) isa SubArray
             @test_throws ArgumentError @view(an[:foo])
             @test_throws ArgumentError @view(an["foo"])
 
-            @test @view(an[rownames[2:3],1]) == a[2:3,1]
-            @test @view(an[rownames[2:3],3]) == a[2:3,3]
-            @test @view(an[rownames[2:3],1]) isa NamedRowVector
-            @test @view(an[rownames[2:3],1]).data isa SubArray
-            @test @view(an[rownames[2:3],1]).rownames == an.rownames[2:3]
-            @test_throws ArgumentError @view(an[[:foo, :a],1])
-            @test_throws ArgumentError @view(an[["foo", "a"],1])
+            @test @view(an[rownames[2:3], 1]) == a[2:3, 1]
+            @test @view(an[rownames[2:3], 3]) == a[2:3, 3]
+            @test @view(an[rownames[2:3], 1]) isa NamedRowVector
+            @test @view(an[rownames[2:3], 1]).data isa SubArray
+            @test @view(an[rownames[2:3], 1]).rownames == an.rownames[2:3]
+            @test_throws ArgumentError @view(an[[:foo, :a], 1])
+            @test_throws ArgumentError @view(an[["foo", "a"], 1])
 
             # inverted
             for (nsymbol, nint) in zip(nsymbols, nints)
@@ -363,7 +348,7 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             vnc[2] = 4
             @test vnc[2] == 4
             @test_throws BoundsError (vnc[0] = 4)
-            @test_throws BoundsError (vnc[n+1] = 4)
+            @test_throws BoundsError (vnc[n + 1] = 4)
 
             vnc = copy(vn)
             vnc[rownames[1]] = 4
@@ -394,64 +379,64 @@ fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 
             @test anc[1] == 4
             anc[2] = 4
             @test anc[2] == 4
-            anc[n+1] = 4
-            @test anc[n+1] == 4
+            anc[n + 1] = 4
+            @test anc[n + 1] == 4
             @test_throws BoundsError (anc[0] = 4)
-            @test_throws BoundsError (anc[length(an)+1] = 4)
+            @test_throws BoundsError (anc[length(an) + 1] = 4)
 
             anc = copy(an)
-            anc[1,1] = 4
-            @test anc[1,1] == 4
-            anc[2,3] = 4
-            @test anc[2,3] == 4
-            anc[n,3] = 4
-            @test anc[n,3] == 4
-            anc[CartesianIndex(3,2)] = 4
-            @test anc[CartesianIndex(3,2)] == 4
-            @test_throws BoundsError (anc[n+1,1] = 4)
-            @test_throws BoundsError (anc[0,1] = 4)
+            anc[1, 1] = 4
+            @test anc[1, 1] == 4
+            anc[2, 3] = 4
+            @test anc[2, 3] == 4
+            anc[n, 3] = 4
+            @test anc[n, 3] == 4
+            anc[CartesianIndex(3, 2)] = 4
+            @test anc[CartesianIndex(3, 2)] == 4
+            @test_throws BoundsError (anc[n + 1, 1] = 4)
+            @test_throws BoundsError (anc[0, 1] = 4)
 
             anc = copy(an)
-            anc[rownames[1],1] = 4
-            @test anc[rownames[1],1] == 4
-            anc[rownames[2],3] = 4
-            @test anc[rownames[2],3] == 4
-            @test_throws ArgumentError (anc[:foo,1] = 4)
-            @test_throws ArgumentError (anc["foo",1] = 4)
-            @test_throws ArgumentError (anc[rownames[1],rownames[1]] = 4)
+            anc[rownames[1], 1] = 4
+            @test anc[rownames[1], 1] == 4
+            anc[rownames[2], 3] = 4
+            @test anc[rownames[2], 3] == 4
+            @test_throws ArgumentError (anc[:foo, 1] = 4)
+            @test_throws ArgumentError (anc["foo", 1] = 4)
+            @test_throws ArgumentError (anc[rownames[1], rownames[1]] = 4)
 
             # multiple elements
             for idx in idxs
                 for idx2 in idxs2
                     anc = copy(an)
-                    anc[idx,idx2] = fill4(anc, idx, idx2)
-                    @test all(anc[idx,idx2] .== 4)
+                    anc[idx, idx2] = fill4(anc, idx, idx2)
+                    @test all(anc[idx, idx2] .== 4)
                 end
 
                 anc = copy(an)
-                anc[idx,2] = fill4(anc, idx, 1)
-                @test all(anc[idx,2] .== 4)
+                anc[idx, 2] = fill4(anc, idx, 1)
+                @test all(anc[idx, 2] .== 4)
             end
 
             for idx2 in idxs2
                 anc = copy(an)
-                anc[rownames[1],idx2] = fill4(anc, 1, idx2)
-                @test all(anc[rownames[1],idx2] .== 4)
-                anc[rownames[2],idx2] = fill4(anc, 1, idx2)
-                @test all(anc[rownames[2],idx2] .== 4)
-                @test_throws ArgumentError (anc[:foo,idx2] = fill4(anc, 1, idx2))
-                @test_throws ArgumentError (anc["foo",idx2] = fill4(anc, 1, idx2))
+                anc[rownames[1], idx2] = fill4(anc, 1, idx2)
+                @test all(anc[rownames[1], idx2] .== 4)
+                anc[rownames[2], idx2] = fill4(anc, 1, idx2)
+                @test all(anc[rownames[2], idx2] .== 4)
+                @test_throws ArgumentError (anc[:foo, idx2] = fill4(anc, 1, idx2))
+                @test_throws ArgumentError (anc["foo", idx2] = fill4(anc, 1, idx2))
 
                 anc = copy(an)
-                anc[rownames[2:3],idx2] = fill4(anc, 2:3, idx2)
-                @test all(anc[rownames[2:3],idx2] .== 4)
-                @test_throws ArgumentError (anc[[:foo, :a],idx2] = fill4(anc, 2:3, idx2))
-                @test_throws ArgumentError (anc[["foo", "a"],idx2] = fill4(anc, 2:3, idx2))
+                anc[rownames[2:3], idx2] = fill4(anc, 2:3, idx2)
+                @test all(anc[rownames[2:3], idx2] .== 4)
+                @test_throws ArgumentError (anc[[:foo, :a], idx2] = fill4(anc, 2:3, idx2))
+                @test_throws ArgumentError (anc[["foo", "a"], idx2] = fill4(anc, 2:3, idx2))
             end
 
             anc = copy(an)
-            anc[[CartesianIndex(3,2), CartesianIndex(3,3)]] = [4, 4]
-            @test all(anc[[CartesianIndex(3,2), CartesianIndex(3,3)]] .== 4)
+            anc[[CartesianIndex(3, 2), CartesianIndex(3, 3)]] = [4, 4]
+            @test all(anc[[CartesianIndex(3, 2), CartesianIndex(3, 3)]] .== 4)
 
             anc = copy(an)
             anc[rownames[1]] = fill4(anc, 1, :)
