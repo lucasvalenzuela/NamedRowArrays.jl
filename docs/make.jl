@@ -17,12 +17,7 @@ makedocs(;
         edit_link="main",
         assets=String[],
     ),
-    pages=[
-        "Home" => "index.md",
-    ],
+    pages=["Home" => "index.md"],
 )
 
-deploydocs(;
-    repo="github.com/lucasvalenzuela/NamedRowArrays.jl",
-    devbranch="main",
-)
+deploydocs(; repo="github.com/lucasvalenzuela/NamedRowArrays.jl", devbranch="main")
