@@ -1,5 +1,8 @@
 using NamedRowArrays
 using Test
+using Aqua
+using ExplicitImports
+using JET
 
 using FillArrays
 
@@ -12,6 +15,15 @@ fill4(a::AbstractMatrix, idx, idx2::Colon) = fill(4, count(!=(false), idx), size
 fill4(a::AbstractMatrix, idx::Colon, idx2::Colon) = fill(4, size(a, 1), size(a, 2))
 
 @testset "NamedRowArrays.jl" begin
+    @testset "Code quality" begin
+        Aqua.test_all(NamedRowArrays)
+        @test check_no_stale_explicit_imports(NamedRowArrays) === nothing
+        @test check_no_self_qualified_accesses(NamedRowArrays) === nothing
+        if JET.JET_AVAILABLE
+            JET.test_package(NamedRowArrays; target_modules=(NamedRowArrays,))
+        end
+    end
+
     n = 4
     m = 5
     v = rand(n)
