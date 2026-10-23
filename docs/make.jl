@@ -6,7 +6,6 @@ DocMeta.setdocmeta!(NamedRowArrays, :DocTestSetup, :(using NamedRowArrays); recu
 makedocs(;
     modules=[NamedRowArrays],
     authors="Lucas Valenzuela",
-    repo="https://github.com/lucasvalenzuela/NamedRowArrays.jl/blob/{commit}{path}#{line}",
     sitename="NamedRowArrays.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
