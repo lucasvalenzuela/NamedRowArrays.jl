@@ -7,8 +7,9 @@
 [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 
-This package for the Julia language provides an array type (the `NamedRowArray`) that knows about its row names.
-This allows for indexing by name in a straightforward manner in addition to the regular indexing possibilities.
+NamedRowArrays provides an array type that knows the names of its rows. Rows can be selected by
+name in addition to the usual indexing by position, for example the `x`, `y` and `z` rows of a
+matrix of particle positions.
 
 ## Installation
 
@@ -24,4 +25,19 @@ Pkg.Registry.add(url="https://github.com/lucasvalenzuela/CosmoAnalysisRegistry")
 The package requires Julia 1.12 or newer and can then be installed with:
 ```julia
 Pkg.add("NamedRowArrays")
+```
+
+## Usage
+
+```julia
+using NamedRowArrays
+
+pos = NamedRowArray(rand(3, 1000), (:x, :y, :z))   # wraps the matrix without copying it
+pos[:z]                     # the whole row z
+pos[[:x, :z], 2:3]          # a 2×2 NamedRowMatrix with rows x and z
+pos[Not(:y), 1]             # a NamedRowVector with rows x and z
+pos .* 2                    # broadcasting keeps the row names
+
+R = NamedRowArray([0 -1 0; 1 0 0; 0 0 1], NamedRowArrays.rownames(pos))  # 90° about z
+R * pos                     # the product has the row names of R
 ```
