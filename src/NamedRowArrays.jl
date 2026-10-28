@@ -223,19 +223,22 @@ end
     A.data[I...] = v
     return A
 end
+# The data converts the remaining indices itself: `setindex!` of an `Array` does not accept
+# every index type that `to_indices` returns, e.g., `Base.LogicalIndex` on Julia 1.14.
 @propagate_inbounds function Base.setindex!(A::NamedRowArray, v, I...)
-    A.data[_to_indices(A, I)...] = v
+    A.data[_rowindices(A, I)...] = v
     return A
 end
 
+_to_indices(A::NamedRowArray, I::Tuple) = to_indices(A.data, _rowindices(A, I))
+
 # A single index of row names selects whole rows of a matrix.
-_to_indices(A::NamedRowMatrix, I::Tuple{Any}) =
-    _isrowname(I[1]) ? _to_indices(A, (I[1], :)) : to_indices(A.data, I)
-function _to_indices(A::NamedRowArray, I::Tuple)
+_rowindices(A::NamedRowMatrix, I::Tuple{Any}) = _isrowname(I[1]) ? _rowindices(A, (I[1], :)) : I
+function _rowindices(A::NamedRowArray, I::Tuple)
     any(_isrowname, Base.tail(I)) && throw(ArgumentError("only named rows are allowed, not columns"))
-    return to_indices(A.data, (_rowindex(A, I[1]), Base.tail(I)...))
+    return (_rowindex(A, I[1]), Base.tail(I)...)
 end
-_to_indices(A::NamedRowArray, I::Tuple{}) = ()
+_rowindices(A::NamedRowArray, I::Tuple{}) = ()
 
 _selects_unique(_) = false
 _selects_unique(::AbstractRange) = true
