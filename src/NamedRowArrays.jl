@@ -4,84 +4,112 @@ using Base: @propagate_inbounds, to_index
 using InvertedIndices
 
 export NamedRowArray, NamedRowVector, NamedRowMatrix, Not
+public rownames
+
+struct _Unchecked end
+
+_lengtherror(nnames, nrows) =
+    ArgumentError("the number of row names ($nnames) does not match the number of rows ($nrows)")
+
+# e.g., ":a appears" or ":a, :c appear"
+_appear(names) = length(names) == 1 ? "$(repr(only(names))) appears" : "$(join(repr.(names), ", ")) appear"
 
 """
-A NamedRowArray is an AbstractArray that wraps another AbstractArray (only
-AbstractVector and AbstractMatrix, however) and adds row names to the first array
-dimension. NamedRowArrays can be indexed by using the named rows as an alternative to
-positional indexing by dimension.
+    NamedRowArray(A::AbstractVecOrMat, names)
 
-### Type parameters
+Wrap the vector or matrix `A` with a name for each row, so that rows can be selected by name as
+well as by position. `A` is not copied. The row `names` are a collection of unique `Symbol`s, such
+as a `Tuple` or a `Vector`, and are copied.
 
-The NamedRowArray contains several type parameters:
+[`NamedRowVector{T,D,R}`](@ref NamedRowVector) and [`NamedRowMatrix{T,D,R}`](@ref NamedRowMatrix)
+are aliases for `NamedRowArray{T,1,D,R}` and `NamedRowArray{T,2,D,R}`, where `T` is the element
+type, `D` the type of the wrapped array and `R` the type of the vector of row names.
 
-```julia
-struct NamedRowArray{T,N,D,R} <: AbstractArray{T,N}
-```
-- `T` : the elemental type of the AbstractArray
-- `N` : the number of dimensions
-- `D` : the type of the wrapped AbstractArray
-- `R` : the names of the rows, as a NTuple{N, Symbol}
+# Indexing
 
-### Constructors
+A `NamedRowArray` can be indexed like the wrapped array. In addition, the first index can be a row
+name, a vector of row names, or a `Not` of row names, which selects all other rows. Names in
+`Not` that the array does not have are ignored. A single row name, vector of row names or `Not`
+of row names as the only index of a matrix selects whole rows. Row names in any other index
+position throw an error.
 
-When constructing a NamedRowArray, note that no copy of the array is made.
+The result is a `NamedRowArray` if all dimensions are indexed and the first index selects a
+vector of rows; otherwise, it is the same as indexing the wrapped array. An index that selects
+a row more than once throws an error, because the row names must be unique.
 
-```julia
-NamedRowArray(A::AbstractArray, rownames::Tuple)
-NamedRowArray(A::AbstractArray, rownames::AbstractVector)
-```
+# Operations
 
-### Indexing
+- Broadcasting, `map`, arithmetic with numbers, reductions that keep every row (e.g.,
+  `sum(A; dims=2)`) and `hcat` return a `NamedRowArray`. All `NamedRowArray`s among the
+  arguments of broadcasting and `hcat` must have the same row names.
+- The product `A * B` of a `NamedRowMatrix` `A` has the row names of `A`. If only `B` has row
+  names, the product is a plain array.
+- [`reverse`](@extref `Base.reverse-Tuple{AbstractVector}`), [`sort`](@extref Base.sort),
+  [`sortslices`](@extref Base.sortslices), [`circshift`](@extref Base.circshift) and
+  [`Random.shuffle`](@extref) reorder the row names together with the rows. Their in-place
+  versions throw an error if they would reorder the rows, because other arrays can share the
+  data (for example, views) and their row names would not be reordered. Reordering within the
+  rows, e.g., `sort!(A; dims=2)`, is possible.
+- `==` and `isequal` compare the values and ignore the row names.
 
-NamedRowArrays can be indexed in the same way as normal AbstractArrays.
-In addition, one can also use the rownames instead of the numerical indices.
-Since only the rows can have names, it is also possible to obtain one or more
-rows of a Matrix by only passing one or more row names as the index.
+# Examples
 
-### Examples
+```jldoctest
+julia> pos = NamedRowArray([1.0 2.0 3.0; 4.0 5.0 6.0; 7.0 8.0 9.0], (:x, :y, :z));
 
-For a Vector:
-```julia
-v = NamedRowArray(rand(3), [:a, :b, :c])
-v[1] # scalar value
-v[:a] # scalar value
-v[2:3] # 2-element NamedRowVector
-v[[:a, :b]] # 2-element NamedRowVector
-```
+julia> pos[:y, 2]
+5.0
 
-For a Matrix:
-```julia
-a = NamedRowArray(rand(3, 10), [:a, :b, :c])
-a[1, 3] # scalar value
-a[:a, 3] # scalar value
-a[:a, 2:3] # 2-element Vector
-a[:a] # whole row: 10-element Vector
-a[[:a, :b]] # two rows: 2×10 NamedRowMatrix
-a[:, 3] # one column: 3-element NamedRowVector
-a[:, 2:3] # two columns: 3×2 NamedRowMatrix
-```
+julia> pos[:y]
+3-element Vector{Float64}:
+ 4.0
+ 5.0
+ 6.0
 
-### Inverted Indexing
+julia> pos[2:3, 1]
+2-element NamedRowVector(::Vector{Float64}) with eltype Float64 with row names:
+ y z
+ 4.0
+ 7.0
 
-Finally, it is also possible to use inverted indexes with NamedRowArrays by using the exported
-`Not` struct from InvertedIndices.jl. In contrast to the usual behavior of `Not`, using row
-names that do not exist will not throw an error, but will silently ignore them.
+julia> pos[[:z, :x], 2:3]
+2×2 NamedRowMatrix(::Matrix{Float64}) with eltype Float64 with row names:
+ z x
+ 8.0  9.0
+ 2.0  3.0
 
-```julia
-v[Not(:a)] # 3-element NamedRowVector
-v[Not(:a, :c)] # 2-element NamedRowVector
-
-a[Not(:a)] # three rows: 3×10 NamedRowMatrix
-a[Not(:a), 2:3] # three rows, two columns: 3×2 NamedRowMatrix
-a[Not(:a), 2] # 3-element NamedRowVector
+julia> pos[Not(:y), 2]
+2-element NamedRowVector(::Vector{Float64}) with eltype Float64 with row names:
+ x z
+ 2.0
+ 8.0
 ```
 """
-struct NamedRowArray{T,N,D,R} <: AbstractArray{T,N}
-    data::D # D <:AbstractArray, enforced in constructor to avoid dispatch bugs
-    rownames::R # R<:NTuple{N, Symbol}
-    NamedRowArray{T,N,D,R}(data::AbstractArray{T,N}, rownames::NTuple) where {T,N,D,R} =
-        new{T,N,D,R}(data, rownames)
+struct NamedRowArray{T,N,D<:AbstractArray{T,N},R<:AbstractVector{Symbol}} <: AbstractArray{T,N}
+    data::D
+    # Views share the row names with their parent, so row names must never be modified
+    # after construction.
+    rownames::R
+
+    function NamedRowArray{T,N,D}(data, names) where {T,N,D}
+        N in (1, 2) ||
+            throw(ArgumentError("a NamedRowArray wraps a vector or matrix, got a $N-dimensional array"))
+        all(name -> name isa Symbol, names) || throw(ArgumentError("the row names must be Symbols"))
+        # a copy, so that the row names cannot be changed from outside
+        v = collect(Symbol, names)
+        length(v) == size(data, 1) || throw(_lengtherror(length(v), size(data, 1)))
+        allunique(v) || throw(
+            ArgumentError("the row names must be unique, but $(_appear(_duplicates(v))) more than once"),
+        )
+        return new{T,N,D,Vector{Symbol}}(data, v)
+    end
+
+    # For row names that are known to be unique, such as those of another NamedRowArray.
+    # They are stored as given.
+    function NamedRowArray{T,N,D,R}(data, names, ::_Unchecked) where {T,N,D,R}
+        length(names) == size(data, 1) || throw(_lengtherror(length(names), size(data, 1)))
+        return new{T,N,D,R}(data, names)
+    end
 end
 
 """
@@ -98,337 +126,380 @@ Alias for [`NamedRowArray{T,1,D,R}`](@ref NamedRowArray).
 """
 const NamedRowVector{T,D,R} = NamedRowArray{T,1,D,R}
 
-NamedRowArray(A::AbstractArray, rownames::AbstractArray) = NamedRowArray(A, Tuple(rownames))
-NamedRowVector(A::AbstractVector, rownames) = NamedRowArray(A, Tuple(rownames))
-NamedRowMatrix(A::AbstractMatrix, rownames) = NamedRowArray(A, Tuple(rownames))
+NamedRowArray(A::AbstractArray{T,N}, names) where {T,N} = NamedRowArray{T,N,typeof(A)}(A, names)
+NamedRowVector(A::AbstractVector, names) = NamedRowArray(A, names)
+NamedRowMatrix(A::AbstractMatrix, names) = NamedRowArray(A, names)
 
+# With a copy of the row names of another NamedRowArray
+_withnames(data, names) = _withownnames(data, collect(names))
+# With row names that nothing else refers to
+_withownnames(data::AbstractArray{T,N}, names::Vector{Symbol}) where {T,N} =
+    NamedRowArray{T,N,typeof(data),Vector{Symbol}}(data, names, _Unchecked())
+# With row names shared with another NamedRowArray
+_withsharednames(data::AbstractArray{T,N}, names::AbstractVector{Symbol}) where {T,N} =
+    NamedRowArray{T,N,typeof(data),typeof(names)}(data, names, _Unchecked())
 
-function NamedRowArray(A::D, rownames::R) where {T,N,D<:AbstractArray{T,N},R<:NTuple}
-    A isa AbstractVecOrMat || throw(ArgumentError("the array has to be an AbstractVecOrMat"))
-    eltype(rownames) === Symbol || throw(ArgumentError("the rownames have to be of type Symbol"))
-    length(rownames) == _size(A) ||
-        throw(ArgumentError("the length of the rownames must match the corresponding row length of the data"))
-    return NamedRowArray{T,N,D,R}(A, rownames)
-end
+_duplicates(names) = unique(filter(r -> count(==(r), names) > 1, names))
 
-_size(A::AbstractVector) = length(A)
-_size(A::AbstractMatrix) = size(A, 1)
+"""
+    NamedRowArrays.rownames(A::NamedRowArray)
 
-# Base definitions that aren't provided by AbstractArray
+Return a copy of the row names of `A` as a `Vector{Symbol}`.
+"""
+rownames(A::NamedRowArray) = copy(A.rownames)
+
 @inline Base.size(A::NamedRowArray) = size(A.data)
 @inline Base.axes(A::NamedRowArray) = axes(A.data)
+Base.IndexStyle(::Type{<:NamedRowArray{T,N,D}}) where {T,N,D} = IndexStyle(D)
 Base.convert(::Type{Array{T,N}}, A::NamedRowArray{T,N}) where {T,N} = convert(Array{T,N}, A.data)
 Base.parent(A::NamedRowArray) = A.data
-Base.similar(A::NamedRowArray, ::Type{S}) where {S} = (d=similar(A.data, S); NamedRowArray(d, A.rownames))
+Base.similar(A::NamedRowArray, ::Type{S}) where {S} = _withnames(similar(A.data, S), A.rownames)
 Base.similar(A::NamedRowArray, ::Type{S}, dims::Dims{N}) where {S,N} = similar(A.data, S, dims)
-Base.reinterpret(::Type{T}, A::NamedRowArray) where {T} = NamedRowArray(reinterpret(T, A.data), A.rownames)
-
-
-# A simple display method to include axis information. It might be nice to
-# eventually display the axis labels alongside the data array, but that is
-# much more difficult.
-function Base.summary(io::IO, A::NamedRowArray)
-    _summary(io, A)
-    # print(io, join(':' .* String.(A.rownames), ", "))
-    _summary(io, A.rownames)
-    println(io)
-    dstmp = displaysize(io)
-    ds = (dstmp[1] - 5, dstmp[2] - 5)
-    # print(io, "for the ", summary(IOContext(io, :displaysize => ds), A.data))
-    print(IOContext(io, :displaysize => ds), "for the ", summary(A.data))
+function Base.reinterpret(::Type{T}, A::NamedRowArray) where {T}
+    S = eltype(A)
+    sizeof(T) == sizeof(S) || throw(
+        ArgumentError(
+            "cannot reinterpret a NamedRowArray with element type $S ($(sizeof(S)) bytes) as $T ($(sizeof(T)) bytes): " *
+            "the number of rows would change, so the row names would no longer match",
+        ),
+    )
+    return _withnames(reinterpret(T, A.data), A.rownames)
 end
-_summary(io, _::NamedRowVector{T,N}) where {T,N} = println(io, "NamedRowVector{$T,...} with row names:")
-_summary(io, _::NamedRowMatrix{T,N}) where {T,N} = println(io, "NamedRowMatrix{$T,...} with row names:")
-function _summary(io, vals::NTuple)
-    width = displaysize(io)[2]
 
-    str = join(String.(vals), " ")
-    if width - 1 < length(str)
-        ind = findprev(' ', str, width - 2)
-        print(io, " ", @view(str[1:min(end, ind)]), "…")
+
+# Base's `summary` describes the array with this, e.g., as
+# "3×4 NamedRowMatrix(view(::Matrix{Float64}, [1, 3, 4], :)) with eltype Float64".
+function Base.showarg(io::IO, A::NamedRowArray, toplevel)
+    print(io, A isa NamedRowVector ? "NamedRowVector(" : "NamedRowMatrix(")
+    Base.showarg(io, A.data, false)
+    print(io, ")")
+    toplevel && print(io, " with eltype ", eltype(A))
+    return nothing
+end
+
+# The row names go on their own line below the summary; Base prints the data.
+function Base.show(io::IO, mime::MIME"text/plain", A::NamedRowArray)
+    summary(io, A)
+    println(io, " with row names:")
+    _print_rownames(io, A.rownames)
+    isempty(A) && return
+    height, width = displaysize(io)
+    data = sprint(show, mime, A.data; context=IOContext(io, :displaysize => (height - 1, width)))
+    # drop the summary line of the data
+    print(io, data[something(findfirst('\n', data), lastindex(data) + 1):end])
+end
+
+function _print_rownames(io, names::AbstractVector{Symbol})
+    width = displaysize(io)[2]
+    str = join(names, " ")
+    if length(str) > width - 1
+        # cut after the last complete name that fits, or inside a name wider than the display
+        cut = first(str, max(width - 2, 0))
+        ind = findlast(' ', cut)
+        print(io, " ", isnothing(ind) ? cut : cut[1:ind], "…")
     else
         print(io, " ", str)
     end
 end
 
-# adapted from arrayshow.jl in Base Julia
-function Base.show(io::IO, mime::MIME"text/plain", A::NamedRowArray)
-    if isempty(A) && get(io, :compact, false)::Bool
-        return show(io, A)
-    end
-    # 0) show summary before setting :compact
-    summary(io, A)
-    isempty(A) && return
-    print(io, ":")
-    Base.show_circular(io, A) && return
 
-    # 1) compute new IOContext
-    if !haskey(io, :compact) && length(axes(A, 2)) > 1
-        io = IOContext(io, :compact => true)
-    end
-    if get(io, :limit, false)::Bool && eltype(A) === Method
-        # override usual show method for Vector{Method}: don't abbreviate long lists
-        io = IOContext(io, :limit => false)
-    end
+# Indexing. Row names in the first index are converted to indices along the first axis of
+# the data, and then all indices are converted by `to_indices` of the data. The result keeps
+# the row names if the array is indexed in all of its dimensions and the row index selects a
+# vector of rows.
 
-    dstmp = displaysize(io)
-    if get(io, :limit, false)::Bool && dstmp[1]-6 <= 0
-        return print(io, " …")
+@propagate_inbounds Base.getindex(A::NamedRowArray, I::Int...) = A.data[I...]
+@propagate_inbounds function Base.getindex(A::NamedRowArray, I...)
+    J = _to_indices(A, I)
+    return _named(A, A.data[J...], J)
+end
+
+@propagate_inbounds function Base.view(A::NamedRowArray, I...)
+    J = _to_indices(A, I)
+    return _namedview(A, view(A.data, J...), I, J)
+end
+
+@propagate_inbounds function Base.setindex!(A::NamedRowArray, v, I::Int...)
+    A.data[I...] = v
+    return A
+end
+# The data converts the remaining indices itself: `setindex!` of an `Array` does not accept
+# every index type that `to_indices` returns, e.g., `Base.LogicalIndex` on Julia 1.14.
+@propagate_inbounds function Base.setindex!(A::NamedRowArray, v, I...)
+    A.data[_rowindices(A, I)...] = v
+    return A
+end
+
+_to_indices(A::NamedRowArray, I::Tuple) = to_indices(A.data, _rowindices(A, I))
+
+# A single index of row names selects whole rows of a matrix.
+_rowindices(A::NamedRowMatrix, I::Tuple{Any}) = _isrowname(I[1]) ? _rowindices(A, (I[1], :)) : I
+function _rowindices(A::NamedRowArray, I::Tuple)
+    any(_isrowname, Base.tail(I)) && throw(ArgumentError("only named rows are allowed, not columns"))
+    return (_rowindex(A, I[1]), Base.tail(I)...)
+end
+_rowindices(A::NamedRowArray, I::Tuple{}) = ()
+
+_selects_unique(_) = false
+_selects_unique(::AbstractRange) = true
+_selects_unique(::Base.LogicalIndex) = true
+_selects_unique(::InvertedIndices.InvertedIndexIterator) = true
+
+_isrowname(_) = false
+_isrowname(::Symbol) = true
+_isrowname(::AbstractVector{Symbol}) = true
+_isrowname(I::InvertedIndex) = _isrowname(I.skip)
+_isrowname(I::InvertedIndices.NotMultiIndex) = any(_isrowname, I.indices)
+
+_keepsnames(A, J) = length(J) == ndims(A) && J[1] isa AbstractVector{<:Integer}
+
+function _named(A, data, J)
+    _keepsnames(A, J) || return data
+    rows = J[1]
+    rows isa Base.Slice && return _withnames(data, A.rownames)
+    return _withownnames(data, _selectednames(A, rows))
+end
+
+function _namedview(A, data, I, J)
+    _keepsnames(A, J) || return data
+    rows = J[1]
+    (first(axes(A.data, 1)) != 1 || _isintegervector(I[1])) &&
+        return _withownnames(data, _selectednames(A, rows))
+    # Reuse the row index of the data view, which Base creates for `Not` and logical indices.
+    if data isa SubArray && parent(data) === A.data
+        names = view(A.rownames, parentindices(data)[1])
     else
-        println(io)
+        names = view(A.rownames, rows)
     end
-
-    # 2) update typeinfo
-    #
-    # it must come after printing the summary, which can exploit :typeinfo itself
-    # (e.g. views)
-    # we assume this function is always called from top-level, i.e. that it's not nested
-    # within another "show" method; hence we always print the summary, without
-    # checking for current :typeinfo (this could be changed in the future)
-    ds = (dstmp[1]-2, dstmp[2])
-    io = IOContext(io, :typeinfo => eltype(A), :displaysize => ds)
-
-    # 2) show actual content
-    recur_io = IOContext(io, :SHOWN_SET => A)
-    Base.print_array(recur_io, A)
+    _checkrepeats(rows, names)
+    return _withsharednames(data, names)
 end
 
+# Integer vectors given by the caller can be changed after creating a view, unlike ranges,
+# and unlike the index vectors that Base creates for logical indices.
+_isintegervector(I) = I isa AbstractArray{<:Integer} && !(I isa AbstractRange) && !(I isa AbstractArray{Bool})
 
-
-# Simple scalar indexing where we just set or return scalars
-@propagate_inbounds Base.getindex(A::NamedRowArray, idxs::Int...) = A.data[idxs...]
-@propagate_inbounds Base.setindex!(A::NamedRowArray, v, idxs::Int...) = (A.data[idxs...] = v)
-
-const Idx = Union{Colon,AbstractArray{Int},BitVector,AbstractArray{Bool}}
-
-
-reaxis(A::NamedRowArray, I::Idx) = A.rownames[I]
-reaxis(A::NamedRowMatrix, I::Idx, _) = A.rownames[I]
-reaxis(A::NamedRowArray, I::InvertedIndex) = collect(A.rownames)[I]
-reaxis(A::NamedRowMatrix, I::InvertedIndex, _) = collect(A.rownames)[I]
-
-@propagate_inbounds function Base.getindex(A::NamedRowArray, idxs::Idx...)
-    NamedRowArray(A.data[idxs...], reaxis(A, idxs...))
-end
-
-@propagate_inbounds Base.getindex(A::NamedRowMatrix, I::Idx) = A.data[I]
-@propagate_inbounds Base.getindex(A::NamedRowMatrix, idx::Int, I::Idx) = A.data[idx, I]
-@propagate_inbounds Base.getindex(A::NamedRowMatrix, idx::Int, I::Int) = A.data[idx, I]
-@propagate_inbounds Base.getindex(A::NamedRowMatrix, idx::Idx, I::Int) =
-    NamedRowVector(A.data[idx, I], reaxis(A, idx))
-
-@propagate_inbounds Base.view(A::NamedRowVector, idx::Symbol) = view(A.data, to_index(A, idx))
-@propagate_inbounds Base.view(A::NamedRowMatrix, idx::Symbol, I=(:)) = view(A.data, to_index(A, idx), I)
-@propagate_inbounds Base.view(A::NamedRowVector, idxs::AbstractVector{Symbol}) =
-    view(A, to_index.((A,), idxs))
-@propagate_inbounds Base.view(A::NamedRowMatrix, idxs::AbstractVector{Symbol}, I=(:)) =
-    view(A, to_index.((A,), idxs), I)
-
-# To resolve ambiguities, we need several definitions
-@propagate_inbounds Base.view(A::NamedRowArray, idxs::Idx...) =
-    NamedRowArray(view(A.data, idxs...), reaxis(A, idxs...))
-@propagate_inbounds Base.view(A::NamedRowVector, idx::Int) = view(A.data, idx)
-@propagate_inbounds Base.view(A::NamedRowMatrix, idx::Int, I) = view(A.data, idx, I)
-@propagate_inbounds Base.view(A::NamedRowMatrix, idx::Idx, I::Int) =
-    NamedRowArray(view(A.data, idx, I), reaxis(A, idx))
-
-# Setindex is so much simpler. Just assign it to the data:
-@propagate_inbounds Base.setindex!(A::NamedRowArray, v, idxs::Union{Idx,Int}...) = (A.data[idxs...] = v)
-
-
-# Indexing by column names
-@propagate_inbounds Base.getindex(A::NamedRowVector, idx::Symbol) = getindex(A, to_index(A, idx))
-@propagate_inbounds Base.getindex(A::NamedRowMatrix, idx::Symbol, I=(:)) = getindex(A, to_index(A, idx), I)
-@propagate_inbounds Base.getindex(A::NamedRowVector, idxs::AbstractVector{Symbol}) =
-    getindex(A, to_index.((A,), idxs))
-@propagate_inbounds Base.getindex(A::NamedRowMatrix, idxs::AbstractVector{Symbol}, I=(:)) =
-    getindex(A, to_index.((A,), idxs), I)
-@inline Base.getindex(A::NamedRowMatrix, idx, idx2::Symbol) =
-    throw(ArgumentError("only named rows are allowed, not columns"))
-@inline Base.getindex(A::NamedRowMatrix, idx::Symbol, idx2::Symbol) =
-    throw(ArgumentError("only named rows are allowed, not columns"))
-
-@propagate_inbounds Base.setindex!(A::NamedRowVector, v, idx::Symbol) = setindex!(A, v, to_index(A, idx))
-@propagate_inbounds Base.setindex!(A::NamedRowMatrix, v, idx::Symbol, I=(:)) =
-    setindex!(A, v, to_index(A, idx), I)
-@propagate_inbounds Base.setindex!(A::NamedRowVector, v, idxs::AbstractVector{Symbol}) =
-    setindex!(A, v, to_index.((A,), idxs))
-@propagate_inbounds Base.setindex!(A::NamedRowMatrix, v, idxs::AbstractVector{Symbol}, I=(:)) =
-    setindex!(A, v, to_index.((A,), idxs), I)
-@propagate_inbounds @inline Base.setindex!(A::NamedRowMatrix, v, idx, idx2::Symbol) =
-    throw(ArgumentError("only named rows are allowed, not columns"))
-@propagate_inbounds @inline Base.setindex!(A::NamedRowMatrix, v, idx::Symbol, idx2::Symbol) =
-    throw(ArgumentError("only named rows are allowed, not columns"))
-
-
-# inverted indices
-@inline Base.getindex(A::NamedRowVector, I::InvertedIndex{<:AbstractVector{Symbol}}) =
-    getindex(A, Not(I.skip...))
-@inline Base.getindex(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}) =
-    getindex(A, Not(I.skip...))
-@inline Base.getindex(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}, i) =
-    getindex(A, Not(I.skip...), i)
-@inline Base.getindex(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}, i::Integer) =
-    getindex(A, Not(I.skip...), i)
-
-@propagate_inbounds function Base.getindex(A::NamedRowVector, idx::InvertedIndex)
-    idx_int = _inverted_symbols_to_ints(A, idx)
-    return NamedRowVector(A.data[idx_int], reaxis(A, idx_int))
-end
-@propagate_inbounds function Base.getindex(A::NamedRowMatrix, idx, I::InvertedIndex)
-    throw(ArgumentError("only named rows are allowed, not columns"))
-end
-@propagate_inbounds function Base.getindex(A::NamedRowMatrix, idx::InvertedIndex, I::InvertedIndex)
-    throw(ArgumentError("only named rows are allowed, not columns"))
-end
-@propagate_inbounds function Base.getindex(
-    A::NamedRowMatrix,
-    I::InvertedIndex{<:AbstractVector{Symbol}},
-    i::InvertedIndex,
-)
-    throw(ArgumentError("only named rows are allowed, not columns"))
-end
-@propagate_inbounds function Base.getindex(A::NamedRowMatrix, idx::InvertedIndex, I)
-    idx_int = _inverted_symbols_to_ints(A, idx)
-    return NamedRowMatrix(A.data[idx_int, I], reaxis(A, idx_int))
-end
-@propagate_inbounds function Base.getindex(A::NamedRowMatrix, idx::InvertedIndex, I::Integer)
-    idx_int = _inverted_symbols_to_ints(A, idx)
-    return NamedRowVector(A.data[idx_int, I], reaxis(A, idx_int))
-end
-@propagate_inbounds function Base.getindex(
-    A::NamedRowMatrix,
-    idx::InvertedIndex{<:Union{Symbol,InvertedIndices.NotMultiIndex}},
-)
-    idx_int = _inverted_symbols_to_ints(A, idx)
-    return NamedRowMatrix(A.data[idx_int, (:)], reaxis(A, idx_int))
-end
-
-# inverted indices
-@inline Base.view(A::NamedRowVector, I::InvertedIndex{<:AbstractVector{Symbol}}) = view(A, Not(I.skip...))
-@inline Base.view(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}) = view(A, Not(I.skip...))
-@inline Base.view(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}, i) =
-    view(A, Not(I.skip...), i)
-@inline Base.view(A::NamedRowMatrix, I::InvertedIndex{<:AbstractVector{Symbol}}, i::Integer) =
-    view(A, Not(I.skip...), i)
-
-@propagate_inbounds function Base.view(A::NamedRowVector, idx::InvertedIndex)
-    idx_int = _inverted_symbols_to_ints(A, idx)
-    return NamedRowVector(view(A.data, idx_int), reaxis(A, idx_int))
-end
-@propagate_inbounds function Base.view(A::NamedRowMatrix, idx, I::InvertedIndex)
-    throw(ArgumentError("only named rows are allowed, not columns"))
-end
-@propagate_inbounds function Base.view(A::NamedRowMatrix, idx::InvertedIndex, I::InvertedIndex)
-    throw(ArgumentError("only named rows are allowed, not columns"))
-end
-@propagate_inbounds function Base.view(
-    A::NamedRowMatrix,
-    I::InvertedIndex{<:AbstractVector{Symbol}},
-    i::InvertedIndex,
-)
-    throw(ArgumentError("only named rows are allowed, not columns"))
-end
-@propagate_inbounds function Base.view(A::NamedRowMatrix, idx::InvertedIndex, I)
-    idx_int = _inverted_symbols_to_ints(A, idx)
-    return NamedRowMatrix(view(A.data, idx_int, I), reaxis(A, idx_int))
-end
-@propagate_inbounds function Base.view(A::NamedRowMatrix, idx::InvertedIndex, I::Integer)
-    idx_int = _inverted_symbols_to_ints(A, idx)
-    return NamedRowVector(view(A.data, idx_int, I), reaxis(A, idx_int))
-end
-@propagate_inbounds function Base.view(
-    A::NamedRowMatrix,
-    idx::InvertedIndex{<:Union{Symbol,InvertedIndices.NotMultiIndex}},
-)
-    idx_int = _inverted_symbols_to_ints(A, idx)
-    return NamedRowMatrix(view(A.data, idx_int, (:)), reaxis(A, idx_int))
-end
-
-_inverted_symbols_to_ints(A, idx) = idx
-function _inverted_symbols_to_ints(A, idx::InvertedIndex{Symbol})
-    try
-        Not(to_index(A, idx.skip))
-    catch
-        (:)
-    end
-end
-function _inverted_symbols_to_ints(A, idx::InvertedIndex{InvertedIndices.NotMultiIndex})
-    skips = Int64[]
-    for i in idx.skip.indices
-        try
-            ind = to_index(A, i)
-            push!(skips, ind)
-        catch
+# A new vector of the row names that `rows`, indices along the first axis of the data, select
+function _selectednames(A, rows)
+    offset = first(axes(A.data, 1)) - 1
+    if offset == 0
+        names = A.rownames[rows]
+    else
+        names = Vector{Symbol}(undef, length(rows))
+        for (k, i) in enumerate(rows)
+            names[k] = A.rownames[i - offset]
         end
     end
-    return Not(skips)
+    _checkrepeats(rows, names)
+    return names
 end
 
+# only an index vector can select a row more than once
+function _checkrepeats(rows, names)
+    _selects_unique(rows) ||
+        allunique(names) ||
+        throw(
+            ArgumentError(
+                "the index selects $(join(repr.(_duplicates(names)), ", ")) more than once, " *
+                "but the row names of a NamedRowArray must be unique",
+            ),
+        )
+    return nothing
+end
 
-function Base.to_index(A::NamedRowArray, idx::Symbol)
-    ind = findfirst(==(idx), A.rownames)
-    isnothing(ind) && throw(ArgumentError("invalid index: $idx"))
+# Index along the first axis of the data of the row `name`, or `nothing` if there is no such row.
+function _findrow(A::NamedRowArray, name::Symbol)
+    pos = findfirst(==(name), A.rownames)
+    return isnothing(pos) ? nothing : first(axes(A.data, 1)) + pos - 1
+end
+
+_rowindex(A, I) = I
+function _rowindex(A, name::Symbol)
+    ind = _findrow(A, name)
+    isnothing(ind) && throw(ArgumentError("invalid row name: $name"))
     return ind
 end
-
-function Base.to_index(A::NamedRowArray, I::InvertedIndices.NotMultiIndex)
-    [to_index(A, idx) for idx in I.indices]
+_rowindex(A, names::AbstractVector{Symbol}) = [_rowindex(A, name) for name in names]
+_rowindex(A, I::InvertedIndex) = _isrowname(I.skip) ? Not(_skippedrows(A, I.skip)) : I
+_rowindex(A, I::InvertedIndex{InvertedIndices.NotMultiIndex}) = Not(_skippedrows(A, I.skip))
+function _rowindex(A, I::InvertedIndex{Symbol})
+    ind = _findrow(A, I.skip)
+    # the same type whether the name exists or not
+    return isnothing(ind) ? Not(1:0) : Not(ind:ind)
 end
 
-function Base.to_indices(
-    A::NamedRowArray,
-    inds,
-    I::Tuple{InvertedIndex{InvertedIndices.NotMultiIndex},Vararg{Any}},
-)
-    new_indices = to_indices(A, inds, (I[1].skip, Base.tail(I)...))
-    skips = InvertedIndices.uniquesort(new_indices[1])
-    picks = InvertedIndices.spanned_indices(inds, skips)[1]
-    return (InvertedIndices.InvertedIndexIterator(skips, picks), Base.tail(new_indices)...)
+# Row names that do not exist are ignored, so that `Not` can exclude names
+# regardless of whether the array has them.
+_skippedrows(A, I) = vec(collect(Int, to_index(A.data, I)))
+function _skippedrows(A, name::Symbol)
+    ind = _findrow(A, name)
+    return isnothing(ind) ? Int[] : [ind]
+end
+_skippedrows(A, names::Union{AbstractVector{Symbol},InvertedIndices.NotMultiIndex}) =
+    _skippedrows!(Int[], A, names)
+function _skippedrows!(skips, A, names::AbstractVector{Symbol})
+    for name in names
+        ind = _findrow(A, name)
+        isnothing(ind) || push!(skips, ind)
+    end
+    return skips
+end
+function _skippedrows!(skips, A, I::InvertedIndices.NotMultiIndex)
+    for i in I.indices
+        append!(skips, _skippedrows(A, i))
+    end
+    return skips
 end
 
-# Cartesian iteration
-Base.eachindex(A::NamedRowArray) = eachindex(A.data)
+# Arithmetic with numbers keeps the type of the wrapped array, e.g., a lazy array, which
+# broadcasting would turn into an Array.
+Base.:-(A::NamedRowArray) = _withnames(-A.data, A.rownames)
+Base.:*(a::Number, A::NamedRowArray) = _withnames(a * A.data, A.rownames)
+Base.:*(A::NamedRowArray, a::Number) = _withnames(A.data * a, A.rownames)
+Base.:/(A::NamedRowArray, a::Number) = _withnames(A.data / a, A.rownames)
 
-"""
-    Base.names(A::NamedRowArray)
+_unnamed(A) = A
+_unnamed(A::NamedRowArray) = A.data
 
-Returns the row names of A as an NTuple.
-"""
-Base.names(A::NamedRowArray) = A.rownames
+# Mapping keeps the row names, as broadcasting does.
+Base.map(f, A::NamedRowArray) = _withnames(map(f, A.data), A.rownames)
+
+# Reductions that keep every row, e.g., `sum(A; dims=2)`, keep the row names.
+function Base.mapreduce(f, op, A::NamedRowArray; dims=:, kwargs...)
+    r = mapreduce(f, op, A.data; dims, kwargs...)
+    _alongrows(dims) && return r
+    return _withnames(r, A.rownames)
+end
+
+# Concatenating columns keeps the rows.
+Base.hcat(A::NamedRowArray, B::AbstractVecOrMat...) = _hcat(A, B...)
+Base.hcat(A::AbstractVecOrMat, B::NamedRowArray, C::AbstractVecOrMat...) = _hcat(A, B, C...)
+Base.hcat(A::NamedRowArray, B::NamedRowArray, C::AbstractVecOrMat...) = _hcat(A, B, C...)
+_hcat(As...) = _withnames(hcat(map(_unnamed, As)...), _commonrownames(As))
 
 
-# Operator behavior
+# Reordering. The data of a NamedRowArray can be shared with other arrays, e.g., views, whose
+# row names would not follow if the rows were reordered in place. Functions that reorder rows
+# in place therefore throw an error.
 
-# unary operators
-Base.:-(A::NamedRowArray) = NamedRowArray(-A.data, A.rownames)
+# Indices along the first axis of the data, as a range indexed from 1
+_rowrange(A::NamedRowArray) = first(axes(A.data, 1)):last(axes(A.data, 1))
 
-# binary operators
-Base.:*(a::Number, A::NamedRowArray) = NamedRowArray(a * A.data, A.rownames)
-Base.:*(a::AbstractMatrix, A::NamedRowArray) = NamedRowArray(a * A.data, A.rownames)
-Base.:*(A::NamedRowArray, a::Number) = NamedRowArray(A.data * a, A.rownames)
-Base.:/(A::NamedRowArray, a::Number) = NamedRowArray(A.data / a, A.rownames)
+_alongrows(dims) = dims isa Colon || 1 in dims
+
+function _throw_inplace_reorder(f, alternative)
+    throw(
+        ArgumentError(
+            "$f cannot reorder the row names of a NamedRowArray in place; use $alternative instead, " *
+            "which returns a new NamedRowArray with the row names reordered",
+        ),
+    )
+end
+
+function Base.reverse(A::NamedRowVector, start::Integer, stop::Integer=lastindex(A))
+    r = _rowrange(A)
+    return A[[first(r):(start - 1); stop:-1:start; (stop + 1):last(r)]]
+end
+Base.reverse(A::NamedRowVector; dims=:) = _reverse(A, dims)
+Base.reverse(A::NamedRowMatrix; dims=:) = _reverse(A, dims)
+function _reverse(A, dims)
+    names = _alongrows(dims) ? reverse(A.rownames) : collect(A.rownames)
+    return _withownnames(reverse(A.data; dims), names)
+end
+
+Base.reverse!(::NamedRowVector, ::Integer, ::Integer...) = _throw_inplace_reorder(reverse!, "reverse")
+Base.reverse!(::NamedRowVector; dims=:) = _throw_inplace_reorder(reverse!, "reverse")
+function Base.reverse!(A::NamedRowMatrix; dims=:)
+    _alongrows(dims) && _throw_inplace_reorder(reverse!, "reverse")
+    reverse!(A.data; dims)
+    return A
+end
+
+Base.sort(A::NamedRowVector; kwargs...) = A[sortperm(A.data; kwargs...)]
+function Base.sort(A::NamedRowMatrix; dims::Integer, kwargs...)
+    dims == 1 && throw(
+        ArgumentError(
+            "sorting a NamedRowMatrix along dims=1 sorts each column separately, so the rows would no longer " *
+            "match their names; use sortslices(A; dims=1) to reorder whole rows",
+        ),
+    )
+    return _withnames(sort(A.data; dims, kwargs...), A.rownames)
+end
+
+Base.sort!(::NamedRowVector; kwargs...) = _throw_inplace_reorder(sort!, "sort")
+function Base.sort!(A::NamedRowMatrix; dims::Integer, kwargs...)
+    dims == 1 && _throw_inplace_reorder(sort!, "sortslices(A; dims=1)")
+    sort!(A.data; dims, kwargs...)
+    return A
+end
+
+function Base.sortslices(A::NamedRowMatrix; dims, kwargs...)
+    dims == 2 && return _withnames(sortslices(A.data; dims, kwargs...), A.rownames)
+    dims == 1 || throw(ArgumentError("dims must be 1 or 2 for a NamedRowMatrix, got $dims"))
+    r = _rowrange(A)
+    rows = [view(A.data, i, :) for i in r]
+    return A[r[sortperm(rows; kwargs...)], :]
+end
+
+Base.permute!(::NamedRowVector, p::AbstractVector) = _throw_inplace_reorder(permute!, "A[p]")
+Base.invpermute!(::NamedRowVector, p::AbstractVector) = _throw_inplace_reorder(invpermute!, "A[invperm(p)]")
+
+Base.circshift(A::NamedRowArray, shiftamt::Real) = _circshift(A, shiftamt)
+Base.circshift(A::NamedRowArray, shiftamt::Tuple{Vararg{Integer}}) = _circshift(A, shiftamt)
+Base.circshift(A::NamedRowArray, shiftamt::AbstractVector{<:Integer}) = _circshift(A, shiftamt)
+_circshift(A, shiftamt) =
+    _withownnames(circshift(A.data, shiftamt), circshift(A.rownames, _rowshift(shiftamt)))
+
+# A shift along the rows changes which values belong to the fixed row names of `dest`.
+function _check_rowshift(dest, rowshift)
+    mod(rowshift, size(dest, 1)) == 0 || _throw_inplace_reorder(circshift!, "circshift")
+end
+_rowshift(shiftamt::Real) = shiftamt
+_rowshift(shiftamt) = isempty(shiftamt) ? 0 : first(shiftamt)
+
+function Base.circshift!(dest::NamedRowArray, src, shiftamt)
+    _check_rowshift(dest, _rowshift(shiftamt))
+    circshift!(dest.data, _unnamed(src), shiftamt)
+    return dest
+end
+Base.circshift!(dest::NamedRowArray, src, shiftamt::Tuple{}) =
+    (circshift!(dest.data, _unnamed(src), shiftamt); dest)
+function Base.circshift!(dest::NamedRowArray, src, shiftamt::Tuple{Vararg{Integer}})
+    _check_rowshift(dest, _rowshift(shiftamt))
+    circshift!(dest.data, _unnamed(src), shiftamt)
+    return dest
+end
+function Base.circshift!(A::NamedRowVector, shift::Integer)
+    _check_rowshift(A, shift)
+    circshift!(A.data, shift)
+    return A
+end
 
 
-# Broadcasting behavior (from https://docs.julialang.org/en/v1/manual/interfaces/#man-interfaces-broadcasting)
+# Broadcasting
 Base.BroadcastStyle(::Type{<:NamedRowArray}) = Broadcast.ArrayStyle{NamedRowArray}()
 
 function Base.similar(
     bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{NamedRowArray}},
     ::Type{ElType},
 ) where {ElType}
-    # Scan the inputs for the NamedRowArray:
-    A = _find_nra(bc)
-    # create the output
-    NamedRowArray(similar(Array{ElType}, axes(bc)), A.rownames)
+    _withnames(similar(Array{ElType}, axes(bc)), _commonrownames(bc))
 end
 
-"`A = find_aac(As)` returns the first NamedRowArray among the arguments."
-_find_nra(bc::Base.Broadcast.Broadcasted) = _find_nra(bc.args)
-_find_nra(args::Tuple) = _find_nra(_find_nra(args[1]), Base.tail(args))
-_find_nra(x) = x
-_find_nra(::Tuple{}) = nothing
-_find_nra(a::NamedRowArray, rest) = a
-_find_nra(::Any, rest) = _find_nra(rest)
+# Row names of all NamedRowArrays among broadcast or concatenation arguments, which must agree.
+_commonrownames(bc::Base.Broadcast.Broadcasted) = _commonrownames(bc.args)
+_commonrownames(args::Tuple) =
+    _combine_rownames(_commonrownames(first(args)), _commonrownames(Base.tail(args)))
+_commonrownames(::Tuple{}) = nothing
+_commonrownames(A::NamedRowArray) = A.rownames
+_commonrownames(_) = nothing
+
+_combine_rownames(::Nothing, ::Nothing) = nothing
+_combine_rownames(a, ::Nothing) = a
+_combine_rownames(::Nothing, b) = b
+function _combine_rownames(a, b)
+    a == b || throw(ArgumentError("cannot combine NamedRowArrays with different row names: $a and $b"))
+    return a
+end
 
 end # module
