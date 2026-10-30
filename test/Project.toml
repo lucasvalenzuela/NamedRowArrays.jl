@@ -16,7 +16,7 @@ NamedRowArrays = {path = ".."}
 Aqua = "0.8.14"
 ExplicitImports = "1.15"
 FillArrays = "1.18"
-JET = "0.12"
+JET = "0.12, 0.13"
 LinearAlgebra = "1"
 OffsetArrays = "1.15"
 Random = "1"
